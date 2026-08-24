@@ -136,9 +136,7 @@ impl NetraConfig {
             ));
         }
         if self.network.timeout_seconds == 0 {
-            return Err(NetraError::config(
-                "Request timeout must be greater than 0",
-            ));
+            return Err(NetraError::config("Request timeout must be greater than 0"));
         }
         if self.storage.max_storage_bytes < 10 * 1024 * 1024 {
             return Err(NetraError::config(
