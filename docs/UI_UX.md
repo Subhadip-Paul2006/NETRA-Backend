@@ -1,9 +1,12 @@
-# NETRA — CLI User Experience (UI/UX) & Interface Standards
+# NETRA — CLI User Experience (UI/UX) & Output Standards
 
-> **Document Status:** Approved Specification  
-> **Target Version:** v1.0.0-MVP  
-> **Authoritative Scope:** Specifications for the command-line interface, terminal interaction models, ANSI formatting, machine-readable JSON modes, exit codes, and developer experience.  
-> **Related Documents:** [USAGE.md](./USAGE.md), [API.md](./API.md), [ARCHITECTURE.md](./ARCHITECTURE.md)
+> **Overview**
+>
+> This document specifies the terminal interaction model, command hierarchy, output stream separation, ANSI color palettes, and machine-readable JSON formatting standards for the `netra` command-line interface.
+
+**Status:** Specified / Designed  
+**Audience:** CLI Developers, Frontend Engineers, DevOps/CI Integrators, Terminal Enthusiasts  
+**Purpose:** Establishes predictable Unix-philosophy interaction patterns ensuring seamless use by human operators and automated CI/CD pipelines alike.
 
 ---
 
@@ -12,34 +15,25 @@
 1. [CLI Design Philosophy & Unix Principles](#1-cli-design-philosophy--unix-principles)
 2. [Command Taxonomy & Hierarchy](#2-command-taxonomy--hierarchy)
 3. [Output Stream Separation (stdout vs. stderr)](#3-output-stream-separation-stdout-vs-stderr)
-4. [Terminal Presentation & ANSI Formatting](#4-terminal-presentation--ansi-formatting)
+4. [Terminal Presentation & ANSI Color Palette](#4-terminal-presentation--ansi-color-palette)
 5. [Machine-Readable Modes (`--json` / `--yaml`)](#5-machine-readable-modes---json----yaml)
 6. [Interactive vs. Non-Interactive CI Modes](#6-interactive-vs-non-interactive-ci-modes)
 7. [Standard Exit Code Specifications](#7-standard-exit-code-specifications)
 8. [Command UX Walkthroughs & Examples](#8-command-ux-walkthroughs--examples)
-9. [Error Presentation & Actionable Help UX](#9-error-presentation--actionable-help-ux)
+9. [Actionable Error Presentation UX](#9-actionable-error-presentation-ux)
 
 ---
 
 ## 1. CLI Design Philosophy & Unix Principles
 
-NETRA is designed with a **Terminal-First Philosophy**. The command-line tool `netra` serves as the primary interface for both human security engineers and automated CI/CD pipelines.
-
-```mermaid
-flowchart LR
-    subgraph Principles["CLI Design Principles"]
-        P1["Predictable Verb-Noun Grammar"]
-        P2["Stream Separation (stdout / stderr)"]
-        P3["Strict Exit Codes (0, 1, 2, 3)"]
-        P4["Pure JSON Machine Mode"]
-    end
-```
+NETRA is designed with a **Terminal-First Philosophy**:
+* **Rule of Separation**: The CLI clearly separates mechanism from policy and pure data from visual presentation.
+* **Rule of Silence**: When invoked with `--quiet` or piped into another command, the CLI suppresses banners and decorative text.
+* **Rule of Composability**: Standard JSON outputs allow effortless piping into tools like `jq`, Python, or shell scripts.
 
 ---
 
 ## 2. Command Taxonomy & Hierarchy
-
-The following diagram illustrates the complete command tree of the `netra` binary:
 
 ```mermaid
 flowchart TD
@@ -47,11 +41,11 @@ flowchart TD
 
     netra --> enroll["`enroll <token>`<br/>Pair device via Ed25519"]
     netra --> status["`status`<br/>Show agent daemon health"]
-    netra --> scan["`scan`<br/>Run on-demand audit"]
-    netra --> findings["`findings`<br/>Query posture defects"]
-    netra --> topology["`topology`<br/>Display local ARP/routing"]
-    netra --> service["`service`<br/>Manage OS supervisor"]
-    netra --> diag["`diagnostics`<br/>Generate debug bundle"]
+    netra --> scan["`scan`<br/>Run on-demand posture audit"]
+    netra --> findings["`findings`<br/>Query security posture defects"]
+    netra --> topology["`topology`<br/>Display local ARP & routing graph"]
+    netra --> service["`service`<br/>Manage background OS daemon"]
+    netra --> diag["`diagnostics`<br/>Generate local debug bundle"]
 
     scan --> scan_all["`--all`"]
     scan --> scan_net["`--network`"]
@@ -72,33 +66,32 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph CLIExecution["CLI Invocation (`netra findings list`)"]
-        Parser["Cobra Command Parser"] --> Exec["Execution Engine"]
+    subgraph Invocation["CLI Invocation (`netra findings list`)"]
+        Parser["Cobra Parser"] --> Exec["Execution Engine"]
     end
 
-    Exec -->|Human UI (Spinners, Tables, Colors)| Stderr["`stderr` (Terminal UI)"]
-    Exec -->|Pure Structured Data (JSON / Plain)| Stdout["`stdout` (Piped to jq / automation)"]
+    Exec -->|Human Visual UI (Spinners, Headers, Colors)| Stderr["`stderr` (Terminal UI)"]
+    Exec -->|Pure Structured Data (JSON / Plain Text)| Stdout["`stdout` (Piped to `jq` / Scripts)"]
 
-    Stdout --> JQ["`jq` / Python / CI Parser"]
-    Stderr --> User["Human Operator Display"]
+    Stdout --> JQ["`jq` / Python Script / CI Gate"]
+    Stderr --> User["Human Operator Screen"]
 ```
 
 ---
 
-## 4. Terminal Presentation & ANSI Formatting
+## 4. Terminal Presentation & ANSI Color Palette
 
-### 4.1 Color Hierarchy:
-* **CRITICAL**: Bright Red (`\033[1;31m`) — Immediate exploit risk or system compromise.
-* **HIGH**: Red (`\033[0;31m`) — Severe configuration defect or exposed sensitive service.
+* **CRITICAL**: Bright Bold Red (`\033[1;31m`) — Immediate exploit risk or high-severity defect.
+* **HIGH**: Red (`\033[0;31m`) — Severe configuration defect or exposed network port.
 * **MEDIUM**: Yellow (`\033[0;33m`) — Insecure setting or unverified network route.
-* **LOW / INFO**: Cyan / Blue (`\033[0;36m`) — Posture observation or inventory item.
-* **SUCCESS**: Green (`\033[0;32m`) — Task passed or finding resolved.
+* **LOW / INFO**: Cyan (`\033[0;36m`) — Informational posture item or asset inventory.
+* **SUCCESS**: Green (`\033[0;32m`) — Task completed successfully or finding verified resolved.
 
 ---
 
 ## 5. Machine-Readable Modes (`--json` / `--yaml`)
 
-When `--json` is supplied, `netra` suppresses all terminal spinners and outputs a standard JSON envelope:
+When `--json` is specified, `netra` suppresses terminal spinners and writes a clean JSON envelope directly to `stdout`:
 
 ```json
 {
@@ -106,14 +99,15 @@ When `--json` is supplied, `netra` suppresses all terminal spinners and outputs 
   "command": "findings list",
   "status": "success",
   "data": {
-    "total": 2,
+    "total": 1,
     "findings": [
       {
         "id": "fnd_01h8c4d5e6",
         "title": "Public Profile Firewall Disabled",
         "severity": "HIGH",
         "status": "OPEN",
-        "fingerprint": "a9f8e7d6c5b4..."
+        "fingerprint": "a9f8e7d6c5b43a2b1c0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3b2a1f0e9d8c",
+        "first_seen": "2026-08-24T12:00:00Z"
       }
     ]
   }
@@ -140,32 +134,32 @@ flowchart TD
 | **`0`** | **SUCCESS** | Command executed cleanly; no policy violations detected. |
 | **`1`** | **OPERATIONAL ERROR** | Network unreachable, invalid credentials, missing permissions. |
 | **`2`** | **POLICY FAILURE** | Security scan detected findings exceeding `--fail-on` threshold. |
-| **`3`** | **INVALID ARGUMENTS** | Incorrect CLI syntax, missing required flags. |
+| **`3`** | **INVALID ARGUMENTS** | Incorrect CLI syntax or missing required flags. |
 
 ---
 
 ## 8. Command UX Walkthroughs & Examples
 
-### 8.1 `netra status`
+### `netra status`
 ```text
 $ netra status
 
 NETRA Host Security Agent (v1.0.0-linux-amd64)
 ─────────────────────────────────────────────────────────────
   Device ID:       dev_01h8a9b2c3d4e5f6
-  Tenant ID:       ten_01h8a1b2c3d4 (Acme Corp Security)
-  Status:          ● ONLINE (WSS Stream Active)
-  Supervisor:      Active (systemd unit: netra.service)
-  Local Buffer:    Clean (0 offline items queued)
-  Last Sync:       2026-08-24 10:15:32 UTC (12s ago)
+  Tenant ID:       ten_01h8a1b2c3d4 (Academic Lab)
+  Status:          ● ONLINE (WSS Stream Connected)
+  Supervisor:      Active (systemd: netra.service)
+  Local DB:        Clean (0 items queued)
+  Last Sync:       2026-08-24 12:15:32 UTC (10s ago)
 ─────────────────────────────────────────────────────────────
 ```
 
 ---
 
-## 9. Error Presentation & Actionable Help UX
+## 9. Actionable Error Presentation UX
 
-Errors in NETRA are formatted with clear root causes and actionable remediation commands:
+Errors provide the root cause and immediate actionable remedies:
 
 ```text
 $ netra scan --firewall

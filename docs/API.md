@@ -1,72 +1,89 @@
 # NETRA — Official API Reference & Stream Protocol Specification
 
-> **Document Status:** Approved Specification  
-> **Target Version:** v1.0.0-MVP  
-> **Authoritative Scope:** Official REST API endpoints, WebSocket streaming frames, authentication schemas, error codes, and Protobuf contracts for NETRA.  
-> **Related Documents:** [SYSTEM_DESIGN.md](./SYSTEM_DESIGN.md), [SECURITY_CHECK.md](./SECURITY_CHECK.md), [UI_UX.md](./UI_UX.md)
+> **Overview**
+>
+> This document provides the complete, authoritative API reference and network communication contracts for NETRA (Network & Endpoint Threat Reconnaissance Architecture). It defines REST endpoints, WebSocket streaming frames, Protocol Buffer schemas, cryptographic authentication headers, error models, and entity data relationships.
+
+**Status:** Specified / Designed  
+**Audience:** Backend Engineers, Agent Developers, Security Architects, API Integrators  
+**Purpose:** Serves as the immutable protocol specification connecting endpoint agents, central control services, CLI tools, and external notification gateways.
 
 ---
 
 ## Contents
 
-1. [API Design Philosophy & Versioning](#1-api-design-philosophy--versioning)
-2. [Authentication & Authorization Models](#2-authentication--authorization-models)
-3. [Cryptographic Request Headers (Agent Authentication)](#3-cryptographic-request-headers-agent-authentication)
-4. [Standard Request & Error Response Format](#4-standard-request--error-response-format)
-5. [WebSocket Agent Gateway Protocol (`/v1/agent/stream`)](#5-websocket-agent-gateway-protocol-v1agentstream)
-6. [Device Management Endpoints](#6-device-management-endpoints)
-7. [Task Orchestration Endpoints](#7-task-orchestration-endpoints)
-8. [Finding & Evidence Endpoints](#8-finding--evidence-endpoints)
-9. [Topology & Network Graph Endpoints](#9-topology--network-graph-endpoints)
-10. [Health & Observability Endpoints](#10-health--observability-endpoints)
+1. [API Architecture & Actor Boundaries](#1-api-architecture--actor-boundaries)
+2. [Authentication, Authorization & Device Attestation](#2-authentication-authorization--device-attestation)
+3. [Standard Headers & Cryptographic Request Signing](#3-standard-headers--cryptographic-request-signing)
+4. [Universal Request, Response & Error Envelopes](#4-universal-request-response--error-envelopes)
+5. [Idempotency & Retry Semantics](#5-idempotency--retry-semantics)
+6. [API Data Model & Entity-Relationship Schema](#6-api-data-model--entity-relationship-schema)
+7. [WebSocket Agent Stream Protocol (`/v1/agent/stream`)](#7-websocket-agent-stream-protocol-v1agentstream)
+8. [Agent-Facing REST Endpoints](#8-agent-facing-rest-endpoints)
+9. [Control-Plane Management Endpoints](#9-control-plane-management-endpoints)
+10. [Network & Vulnerability Intelligence Endpoints](#10-network--vulnerability-intelligence-endpoints)
+11. [Controlled Remediation Endpoints](#11-controlled-remediation-endpoints)
+12. [Integration Gateway Endpoints (Slack & Webhooks)](#12-integration-gateway-endpoints-slack--webhooks)
+13. [Health, Telemetry & Diagnostics Endpoints](#13-health-telemetry--diagnostics-endpoints)
 
 ---
 
-## 1. API Design Philosophy & Versioning
+## 1. API Architecture & Actor Boundaries
 
-The NETRA API is built according to OpenAPI 3.1 specifications. It is strictly versioned via the URL path prefix (`/v1`). All timestamp fields are ISO 8601 UTC strings (`2026-08-24T12:00:00Z`), and all entity identifiers are standard UUIDv7 strings.
-
-```
-Base URL (Production): https://api.netra.io/v1
-Base WSS (Production): wss://api.netra.io/v1/agent/stream
-```
-
----
-
-## 2. Authentication & Authorization Models
+The NETRA API cleanly separates communication pathways across three distinct actors:
 
 ```mermaid
 flowchart TD
-    subgraph AuthLayer["API Authentication Architecture"]
-        ClientUser["Management Client (CLI / Web)"] -->|Bearer JWT / API Key| RESTAuth["REST Auth Middleware"]
-        AgentDevice["Endpoint Agent Host"] -->|Ed25519 Canonical Signature| WSSAuth["WSS Cryptographic Middleware"]
+    subgraph Actors["API Calling Actors"]
+        AgentHost["Endpoint Agent Host (Go Binary)"]
+        Operator["Human Operator / CLI / Web Console"]
+        Integration["Third-Party Webhooks (Slack / CI)"]
     end
 
-    RESTAuth --> Context["Tenant Execution Context (`SET LOCAL app.current_tenant_id`)"]
-    WSSAuth --> Context
+    subgraph Boundaries["API Architectural Boundaries"]
+        AgentAPI["Agent-Facing API & WSS Gateway<br/>• Outbound WSS (`/v1/agent/stream`)<br/>• Fallback REST (`/v1/agent/poll`, `/v1/agent/enroll`)<br/>• Auth: Ed25519 Request Signing"]
+        ControlAPI["Control-Plane Management API<br/>• REST Endpoints (`/v1/devices`, `/v1/findings`, etc.)<br/>• Auth: Bearer JWT / Scoped API Key<br/>• RBAC: Admin / Operator / Auditor"]
+        IntegrationAPI["Integration Gateway API<br/>• Webhook Handlers (`/v1/integrations/*`)<br/>• Auth: HMAC Signatures (Slack HMAC-SHA256)"]
+    end
+
+    AgentHost --> AgentAPI
+    Operator --> ControlAPI
+    Integration --> IntegrationAPI
 ```
 
 ---
 
-## 3. Cryptographic Request Headers (Agent Authentication)
+## 2. Authentication, Authorization & Device Attestation
 
-Every HTTP request or WebSocket initialization frame sent by an enrolled agent must include:
+* **Agent Authentication**: Uses asymmetric **Ed25519 (RFC 8032)** public-key signatures. Endpoints have no shared secrets or passwords.
+* **Control-Plane Authentication**: Uses standard JSON Web Tokens (**JWT**) signed by the Supabase / PostgreSQL auth service (RS256/ES256).
+* **Role-Based Access Control (RBAC)**:
+  - `ROLE_ADMIN`: Full administrative control (Enrollment token generation, device revocation, policy configuration).
+  - `ROLE_OPERATOR`: Can trigger scans, view findings, and approve remediation actions.
+  - `ROLE_AUDITOR`: Read-only access to findings, topology graphs, and immutable audit logs.
+
+---
+
+## 3. Standard Headers & Cryptographic Request Signing
+
+### 3.1 Agent Cryptographic Headers
+Every HTTP request and WebSocket initialization frame dispatched by an enrolled agent must include:
 
 ```http
 X-NETRA-Device-ID: dev_01h8a9b2c3d4e5f6
 X-NETRA-Timestamp: 1776189500
 X-NETRA-Nonce: a9f8e7d6-c5b4-4a3b-2a1f-0e9d8c7b6a5f
 X-NETRA-Request-ID: req_1122334455667788
-X-NETRA-Signature: 6f8b9e... (128-char hex-encoded Ed25519 signature)
+X-NETRA-Signature: 6f8b9e... (128-character hex-encoded Ed25519 signature)
 ```
 
 $$\text{Canonical String} = \text{METHOD} \parallel \text{"\textbackslash n"} \parallel \text{PATH} \parallel \text{"\textbackslash n"} \parallel \text{TIMESTAMP} \parallel \text{"\textbackslash n"} \parallel \text{NONCE} \parallel \text{"\textbackslash n"} \parallel \text{REQUEST\_ID} \parallel \text{"\textbackslash n"} \parallel \text{SHA256}(\text{BODY})$$
 
 ---
 
-## 4. Standard Request & Error Response Format
+## 4. Universal Request, Response & Error Envelopes
 
-### Success Response:
+### 4.1 Standard Success Envelope
 ```json
 {
   "success": true,
@@ -78,13 +95,13 @@ $$\text{Canonical String} = \text{METHOD} \parallel \text{"\textbackslash n"} \p
 }
 ```
 
-### Standard Error Response:
+### 4.2 Standard Error Envelope
 ```json
 {
   "success": false,
   "error": {
-    "code": "DEVICE_NOT_FOUND",
-    "message": "The requested device UUID does not exist in the active tenant.",
+    "code": "DEVICE_NOT_ENROLLED",
+    "message": "The requested device UUID does not exist or has been revoked.",
     "details": { "device_id": "dev_01h8a9b2c3" }
   },
   "meta": {
@@ -94,49 +111,164 @@ $$\text{Canonical String} = \text{METHOD} \parallel \text{"\textbackslash n"} \p
 }
 ```
 
+### Standard Error Codes:
+* `AUTH_INVALID_SIGNATURE`: Ed25519 signature verification failed.
+* `AUTH_NONCE_REPLAYED`: The provided nonce was seen within the sliding 300s window.
+* `DEVICE_REVOKED`: The device has been administratively revoked.
+* `CAPABILITY_NOT_WHITELISTED`: The requested task capability is not in the approved pre-compiled whitelist.
+* `REMEDIATION_PREFLIGHT_FAILED`: Pre-flight safety checks prevented remediation execution.
+
 ---
 
-## 5. WebSocket Agent Gateway Protocol (`/v1/agent/stream`)
+## 5. Idempotency & Retry Semantics
 
-The following sequence demonstrates the live bidirectional frame exchange between an agent and the backend gateway.
+* **Idempotency Key**: Endpoints supporting state creation (`POST /v1/tasks`, `POST /v1/remediation/apply`) accept an `Idempotency-Key: <UUIDv7>` header. If re-sent with the same key within 24 hours, the server returns the cached response without re-executing.
+* **Finding Deduplication**: Findings are ingested via deterministic SHA-256 fingerprints. Ingesting an existing fingerprint updates `last_seen` rather than creating duplicate records.
+
+---
+
+## 6. API Data Model & Entity-Relationship Schema
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant Agent as Agent Worker
-    participant Gateway as WSS Stream Gateway
-    participant TaskOrch as Task Orchestrator
-    participant DB as PostgreSQL Core
+erDiagram
+    TENANT {
+        string id PK
+        string name
+        datetime created_at
+    }
+    DEVICE {
+        string id PK
+        string tenant_id FK
+        string hostname
+        string os_type
+        string public_key
+        string status
+        datetime last_seen
+    }
+    TASK {
+        string id PK
+        string device_id FK
+        string capability
+        string status
+        text parameters_json
+        datetime created_at
+    }
+    OBSERVATION {
+        string id PK
+        string device_id FK
+        string task_id FK
+        string observation_type
+        string sha256_hash
+        text raw_payload_json
+    }
+    FINDING {
+        string id PK
+        string fingerprint PK
+        string device_id FK
+        string rule_id
+        string severity
+        string status
+        string evidence_sha256
+        datetime first_seen
+        datetime last_seen
+    }
+    VULNERABILITY {
+        string cve_id PK
+        string cpe_pattern
+        float cvss_score
+        string severity
+        text description
+    }
+    REMEDIATION_ACTION {
+        string id PK
+        string finding_id FK
+        string action_type
+        string status
+        string approved_by
+        datetime executed_at
+    }
+    AUDIT_EVENT {
+        string id PK
+        string tenant_id FK
+        string actor
+        string action
+        text payload_json
+        datetime created_at
+    }
 
-    Agent->>Gateway: Connect `wss://api.netra.io/v1/agent/stream`
-    Agent->>Gateway: Frame: `AGENT_HELLO` { device_id, os, arch }
-    Gateway->>DB: Verify Ed25519 Public Key & Update Status ONLINE
-    Gateway-->>Agent: Frame: `ACK` (Connection Established)
-
-    Note over Gateway,TaskOrch: Operator dispatches scan task
-    TaskOrch->>Gateway: Forward Task (`tsk_01h8...`, `SCAN_NETWORK`)
-    Gateway->>Agent: Frame: `TASK_DISPATCH` { task_id, capability }
-    Agent->>Agent: Run Native OS Syscalls (Sandboxed)
-    Agent->>Gateway: Frame: `TASK_RESULT` { task_id, findings, evidence_sha256 }
-    Gateway->>DB: Ingest Findings & Mark Task COMPLETED
-    Gateway-->>Agent: Frame: `TASK_ACK` { task_id, status: "INGESTED" }
+    TENANT ||--o{ DEVICE : owns
+    DEVICE ||--o{ TASK : receives
+    TASK ||--o{ OBSERVATION : produces
+    DEVICE ||--o{ FINDING : reports
+    FINDING ||--o{ REMEDIATION_ACTION : triggers
+    FINDING }o--o{ VULNERABILITY : maps_to
+    TENANT ||--o{ AUDIT_EVENT : records
 ```
 
 ---
 
-## 6. Device Management Endpoints
+## 7. WebSocket Agent Stream Protocol (`/v1/agent/stream`)
 
-### 6.1 `POST /v1/agent/enroll`
-Enrolls a new endpoint device into a tenant organization.
-* **Auth**: None (Authorized by single-use token in request body)
+Persistent bidirectional connection between the endpoint agent and control gateway.
+
+### Protobuf Frame Definitions:
+```protobuf
+syntax = "proto3";
+package netra.agent.v1;
+
+message Frame {
+  string frame_id = 1;
+  int64 timestamp = 2;
+  oneof payload {
+    AgentHello hello = 3;
+    TaskDispatch task_dispatch = 4;
+    TaskResult task_result = 5;
+    FindingIngest finding_ingest = 6;
+    Heartbeat heartbeat = 7;
+    Ack ack = 8;
+  }
+}
+
+message AgentHello {
+  string device_id = 1;
+  string os_name = 2;
+  string arch = 3;
+  string agent_version = 4;
+}
+
+message TaskDispatch {
+  string task_id = 1;
+  string capability = 2;
+  string parameters_json = 3;
+  int32 timeout_seconds = 4;
+}
+
+message TaskResult {
+  string task_id = 1;
+  string status = 2;
+  string evidence_sha256 = 3;
+  bytes raw_evidence_gz = 4;
+  string error_message = 5;
+}
+```
+
+---
+
+## 8. Agent-Facing REST Endpoints
+
+### 8.1 `POST /v1/agent/enroll`
+Enrolls a newly installed agent host.
+* **Status**: `Specified`
+* **Actor**: Unenrolled Agent Host
+* **Auth**: Single-use Enrollment Token
 * **Request**:
 ```json
 {
-  "enrollment_token": "enroll_sec_99a8b7c6d5e4",
-  "public_key": "3d4f5a6b... (64-char hex Ed25519 public key)",
-  "hostname": "prod-worker-01",
-  "os": "linux",
-  "kernel": "6.5.0-generic",
+  "enrollment_token": "enroll_sec_99a8b7c6d5e4f3a2",
+  "public_key": "3d4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+  "hostname": "workstation-01",
+  "os_type": "linux",
+  "os_release": "Ubuntu 24.04 LTS",
   "arch": "amd64"
 }
 ```
@@ -147,23 +279,46 @@ Enrolls a new endpoint device into a tenant organization.
   "data": {
     "device_id": "dev_01h8a9b2c3d4e5f6",
     "tenant_id": "ten_01h8a1b2c3d4",
+    "heartbeat_interval_seconds": 15,
     "enrolled_at": "2026-08-24T12:00:00Z"
   }
 }
 ```
 
-### 6.2 `GET /v1/devices`
-Lists all enrolled devices for the active tenant.
-* **Auth**: Bearer JWT (Roles: `USER`, `ADMIN`)
-* **Query Params**: `status` (`ONLINE`, `OFFLINE`, `REVOKED`), `limit`, `offset`
-
 ---
 
-## 7. Task Orchestration Endpoints
+## 9. Control-Plane Management Endpoints
 
-### 7.1 `POST /v1/tasks`
-Creates and dispatches an asynchronous security scan task.
-* **Auth**: Bearer JWT (Roles: `OPERATOR`, `ADMIN`)
+### 9.1 `GET /v1/devices`
+Lists all registered endpoint devices in the active tenant.
+* **Status**: `Specified`
+* **Actor**: Operator / Web Console / CLI
+* **Auth**: Bearer JWT (`ROLE_OPERATOR`, `ROLE_ADMIN`, `ROLE_AUDITOR`)
+* **Query Params**: `status` (`ONLINE`, `OFFLINE`, `REVOKED`), `os_type`, `limit`, `offset`
+* **Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "total": 1,
+    "devices": [
+      {
+        "id": "dev_01h8a9b2c3d4e5f6",
+        "hostname": "workstation-01",
+        "os_type": "linux",
+        "status": "ONLINE",
+        "last_seen": "2026-08-24T12:05:00Z"
+      }
+    ]
+  }
+}
+```
+
+### 9.2 `POST /v1/tasks`
+Creates and dispatches an asynchronous scan task to an enrolled device.
+* **Status**: `Specified`
+* **Actor**: Operator / Automated CI Gate
+* **Auth**: Bearer JWT (`ROLE_OPERATOR`, `ROLE_ADMIN`)
 * **Request**:
 ```json
 {
@@ -180,38 +335,28 @@ Creates and dispatches an asynchronous security scan task.
     "task_id": "tsk_01h8b3c4d5e6",
     "status": "PENDING",
     "device_id": "dev_01h8a9b2c3d4e5f6",
-    "created_at": "2026-08-24T12:01:00Z"
+    "created_at": "2026-08-24T12:06:00Z"
   }
 }
 ```
 
 ---
 
-## 8. Finding & Evidence Endpoints
+## 10. Network & Vulnerability Intelligence Endpoints
 
-### 8.1 `GET /v1/findings`
-Queries security findings for the active tenant with rich filtering.
+### 10.1 `GET /v1/topology/graph`
+Returns the synthesized network topology and reachability graph.
+* **Status**: `Specified`
+* **Actor**: Operator / Web Console
 * **Auth**: Bearer JWT
-* **Query Params**: `severity` (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`), `status` (`OPEN`, `ACKNOWLEDGED`, `RESOLVED`), `device_id`
-
-### 8.2 `GET /v1/findings/:id/evidence`
-Retrieves the cryptographically verified raw evidence payload backing a finding.
-
----
-
-## 9. Topology & Network Graph Endpoints
-
-### 9.1 `GET /v1/topology/graph`
-Returns the synthesized network topology reachability graph.
-* **Auth**: Bearer JWT
-* **Response**:
+* **Response (200 OK)**:
 ```json
 {
   "success": true,
   "data": {
     "nodes": [
-      { "id": "node_dev_01", "type": "DEVICE", "label": "srv-prod-01", "ip": "192.168.1.10" },
-      { "id": "node_gw_01", "type": "GATEWAY", "label": "Router-R3", "ip": "192.168.1.1" }
+      { "id": "node_dev_01", "type": "DEVICE", "label": "workstation-01", "ip": "192.168.1.50" },
+      { "id": "node_gw_01", "type": "GATEWAY", "label": "Default-Gateway", "ip": "192.168.1.1" }
     ],
     "links": [
       { "source": "node_dev_01", "target": "node_gw_01", "type": "DEFAULT_GATEWAY" }
@@ -220,9 +365,55 @@ Returns the synthesized network topology reachability graph.
 }
 ```
 
+### 10.2 `GET /v1/vulnerabilities`
+Queries the cached CVE vulnerability intelligence catalog.
+* **Status**: `Specified`
+* **Actor**: Operator / CLI
+
 ---
 
-## 10. Health & Observability Endpoints
+## 11. Controlled Remediation Endpoints
 
-* `GET /v1/health`: Returns system status (`{"status": "HEALTHY", "database": "CONNECTED"}`).
-* `GET /metrics`: Standard Prometheus metrics endpoint for cluster monitoring.
+### 11.1 `POST /v1/remediation/apply`
+Applies an approved, controlled remediation action with mandatory post-validation.
+* **Status**: `Specified`
+* **Actor**: Human Operator / Approved Slack Action
+* **Auth**: Bearer JWT (`ROLE_ADMIN`, `ROLE_OPERATOR`)
+* **Request**:
+```json
+{
+  "finding_id": "fnd_01h8c4d5e6",
+  "action_type": "FIREWALL_ENABLE_PROFILE",
+  "dry_run": false
+}
+```
+* **Response (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "remediation_id": "rem_01h8d5e6f7",
+    "status": "VERIFIED_RESOLVED",
+    "finding_id": "fnd_01h8c4d5e6",
+    "post_validation_passed": true,
+    "executed_at": "2026-08-24T12:10:00Z"
+  }
+}
+```
+
+---
+
+## 12. Integration Gateway Endpoints (Slack & Webhooks)
+
+### 12.1 `POST /v1/integrations/slack/interactivity`
+Handles Slack Block Kit interactive buttons (`[Approve Remediation]`).
+* **Status**: `Specified`
+* **Actor**: Slack API Servers
+* **Auth**: HMAC-SHA256 Signature (`X-Slack-Signature`, `X-Slack-Request-Timestamp`)
+
+---
+
+## 13. Health, Telemetry & Diagnostics Endpoints
+
+* `GET /v1/health`: System health check (`{"status": "HEALTHY", "db": "CONNECTED", "version": "1.0.0"}`).
+* `GET /metrics`: Standard Prometheus metrics format.

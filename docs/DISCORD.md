@@ -1,9 +1,12 @@
-# NETRA — Discord Integration & Community Notifier Architecture
+# NETRA — Discord Integration & Homelab Notifier Architecture
 
-> **Document Status:** Approved Specification  
-> **Integration Role:** Optional Homelab Plugin / Outbound Webhook Notifier  
-> **Authoritative Scope:** Specifications for Discord webhook notifications, embed schemas, security restrictions, and architectural demotion rationale for NETRA.  
-> **Related Documents:** [ARCHITECTURE.md](./ARCHITECTURE.md), [SLACK.md](./SLACK.md), [SECURITY_CHECK.md](./SECURITY_CHECK.md)
+> **Overview**
+>
+> This document specifies the optional Discord integration for NETRA (Network & Endpoint Threat Reconnaissance Architecture). It defines the one-way webhook egress architecture, embed schemas, security restrictions, and architectural demotion rationale from the core control plane.
+
+**Status:** Specified / Designed  
+**Audience:** Homelab Maintainers, Community Developers, Security Researchers  
+**Purpose:** Establishes the technical boundaries for dispatching informational notifications to personal Discord servers without introducing security liabilities into the core architecture.
 
 ---
 
@@ -19,11 +22,9 @@
 
 ## 1. Integration Role & Demotion Rationale
 
-`[FACT]` In legacy NETRA, Discord was mistakenly architected as a primary interactive control plane (`discord/` bot, slash commands, direct session management).
-
-`[RECOMMENDATION]` Discord has been **formally demoted from the core architecture**:
-* **Why Demoted**: Discord is a consumer gaming/community chat application. It lacks enterprise Single Sign-On (SSO/SAML), enforces strict 2,000-character message limits, introduces third-party token leakage risks, and cannot operate in air-gapped or compliance-regulated enterprise environments.
-* **New Role**: Discord is maintained purely as an **Optional Outbound Webhook Notifier** for students, security researchers, and homelab enthusiasts.
+In legacy prototypes, Discord was mistakenly utilized as an interactive control plane. In the new NETRA architecture, Discord has been **formally demoted to an Optional Outbound Webhook Notifier**:
+* **Why Demoted**: Discord lacks enterprise RBAC, enforces 2,000-character message limits, introduces third-party token leakage risks, and cannot operate in air-gapped academic networks.
+* **New Role**: Maintained purely as an optional webhook egress for homelab enthusiasts and student researchers.
 
 ---
 
@@ -54,8 +55,6 @@ flowchart LR
 
 ## 4. Discord Webhook Embed Schema
 
-When an alert triggers, NETRA dispatches a standard Discord Webhook payload:
-
 ```json
 {
   "username": "NETRA Security Notifier",
@@ -71,8 +70,8 @@ When an alert triggers, NETRA dispatches a standard Discord Webhook payload:
         { "name": "Service", "value": "Redis (Port 6379)", "inline": true },
         { "name": "Remediation", "value": "Bind Redis to `127.0.0.1` or enable UFW firewall rule." }
       ],
-      "footer": { "text": "NETRA Community Edition • v1.0.0" },
-      "timestamp": "2026-08-24T10:30:00Z"
+      "footer": { "text": "NETRA Academic Edition • v1.0.0" },
+      "timestamp": "2026-08-24T12:30:00Z"
     }
   ]
 }
@@ -85,7 +84,7 @@ When an alert triggers, NETRA dispatches a standard Discord Webhook payload:
 ```mermaid
 flowchart TD
     subgraph ProhibitedDiscordActions["STRUCTURALLY PROHIBITED FOR DISCORD"]
-        D1["✕ No Direct Database Connections"]
+        D1["✕ No Direct Database Access or Credentials"]
         D2["✕ No Remote Task Dispatch or Scan Triggers"]
         D3["✕ No Device Enrollment Authentication"]
         D4["✕ No Exposure of Raw Memory / Binary Artifacts"]

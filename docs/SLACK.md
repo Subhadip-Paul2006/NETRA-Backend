@@ -1,9 +1,12 @@
 # NETRA — Slack Integration & Human Approval Gateway Architecture
 
-> **Document Status:** Approved Specification  
-> **Integration Role:** Optional Plugin / Asynchronous Notification & Approval Gateway  
-> **Authoritative Scope:** Specifications for Slack alerts, Block Kit schemas, interactive human-in-the-loop approvals, and security boundaries for NETRA.  
-> **Related Documents:** [ARCHITECTURE.md](./ARCHITECTURE.md), [SECURITY_CHECK.md](./SECURITY_CHECK.md), [SYSTEM_DESIGN.md](./SYSTEM_DESIGN.md)
+> **Overview**
+>
+> This document specifies the optional Slack integration for NETRA (Network & Endpoint Threat Reconnaissance Architecture). It details the asynchronous notification architecture, Block Kit message structures, interactive human approval workflows, and least-privilege OAuth boundaries.
+
+**Status:** Specified / Designed  
+**Audience:** Security Engineers, Slack App Developers, DevOps Integrators  
+**Purpose:** Establishes the technical and security contracts required for human-in-the-loop remediation authorizations via Slack.
 
 ---
 
@@ -21,16 +24,14 @@
 
 ## 1. Integration Role & Architecture Philosophy
 
-`[FACT]` Slack is an external third-party communication platform. It is not an enterprise database, does not provide hardware-backed cryptographic identity, and cannot operate in air-gapped networks.
-
-`[RECOMMENDATION]` Slack is defined strictly as an **Asynchronous Notification & Human Approval Gateway**:
-* It is an **optional plugin integration**, not a core dependency.
-* The NETRA backend operates with 100% functionality even if Slack is unconfigured or offline.
+Slack is an external third-party communication platform. Within NETRA, Slack is defined strictly as an **Optional Asynchronous Notification & Human Approval Gateway**:
+* **Decoupled Architecture**: The core NETRA platform functions completely independently if Slack is unconfigured or offline.
+* **No Inbound Agent Traffic**: Endpoints never communicate directly with Slack.
 
 ```mermaid
 flowchart LR
-    subgraph CorePlatform["NETRA Core Control Plane"]
-        BE["NETRA Backend API & Database"]
+    subgraph CorePlatform["NETRA Control Plane"]
+        BE["NETRA Control API & Engine"]
     end
 
     subgraph SlackService["Slack Cloud (Optional Gateway)"]
@@ -46,28 +47,28 @@ flowchart LR
 
 ## 2. Supported Use Cases
 
-1. **Critical Finding Alerts**: Instant notification when a `CRITICAL` or `HIGH` severity finding is detected on a production host.
+1. **Critical Finding Notifications**: Instant notification when a `CRITICAL` or `HIGH` severity finding is detected on an enrolled host.
 2. **Interactive Remediation Approvals**: Human-in-the-loop authorization (`[Approve]` / `[Reject]`) before executing high-impact corrective actions.
-3. **Weekly Posture Summaries**: Scheduled executive digest showing total resolved vs. open findings across all enrolled devices.
+3. **Weekly Digest**: Scheduled summary of open versus resolved findings.
 
 ---
 
 ## 3. Alert Notification Model & Block Kit Design
 
-When a critical finding is ingested, the NETRA backend dispatches a structured Slack Block Kit message:
+When a critical finding is ingested, the Control API dispatches a structured Slack Block Kit message:
 
 ```json
 {
   "blocks": [
     {
       "type": "header",
-      "text": { "type": "plain_text", "text": "🚨 NETRA Alert: Exposed SMBv1 Service Detected" }
+      "text": { "type": "plain_text", "text": "🚨 NETRA Alert: Insecure Port Exposure Detected" }
     },
     {
       "type": "section",
       "fields": [
-        { "type": "mrkdwn", "text": "*Host:* `srv-prod-db-01`" },
-        { "type": "mrkdwn", "text": "*Severity:* `CRITICAL`" },
+        { "type": "mrkdwn", "text": "*Host:* `workstation-01`" },
+        { "type": "mrkdwn", "text": "*Severity:* `HIGH`" },
         { "type": "mrkdwn", "text": "*Subnet:* `192.168.1.0/24`" },
         { "type": "mrkdwn", "text": "*MITRE:* `T1021.002`" }
       ]
@@ -75,11 +76,6 @@ When a critical finding is ingested, the NETRA backend dispatches a structured S
     {
       "type": "actions",
       "elements": [
-        {
-          "type": "button",
-          "text": { "type": "plain_text", "text": "View in Console" },
-          "url": "https://console.netra.io/findings/fnd_01h8c4d5e6"
-        },
         {
           "type": "button",
           "text": { "type": "plain_text", "text": "Approve Firewall Isolation" },
@@ -96,22 +92,20 @@ When a critical finding is ingested, the NETRA backend dispatches a structured S
 
 ## 4. Interactive Remediation Approval Workflow
 
-The following sequence details how a human operator authorizes a remediation action securely from a Slack interactive alert:
-
 ```mermaid
 sequenceDiagram
     autonumber
     participant Operator as Security Engineer (Slack)
     participant SlackAPI as Slack API Server
-    participant Gateway as NETRA Slack Webhook Handler
+    participant Gateway as NETRA Slack Webhook Ingress
     participant TaskOrch as Task Orchestrator
     participant DB as PostgreSQL Core
 
     Operator->>SlackAPI: Clicks [Approve Remediation] Button
     SlackAPI->>Gateway: POST /v1/integrations/slack/interactivity (Signed HMAC)
     Gateway->>Gateway: Verify Slack HMAC Signature & Timestamp Window
-    Gateway->>DB: Verify Operator Slack ID has `OPERATOR` / `ADMIN` Role
-    Gateway->>DB: Insert `audit_events` Record (Approved by Slack User)
+    Gateway->>DB: Verify Operator Slack ID has `ROLE_OPERATOR` / `ROLE_ADMIN`
+    Gateway->>DB: Insert `AUDIT_EVENT` Record (Approved by Slack User)
     Gateway->>TaskOrch: Enqueue Remediation Task
     Gateway-->>SlackAPI: Return Ephemeral Confirmation Message
     SlackAPI-->>Operator: Render "Remediation Scheduled by @Alex"
@@ -139,13 +133,13 @@ flowchart TD
 
 ## 6. Rate Limits & Failure Handling
 
-* **Rate Limiting**: Outbound Slack notifications are throttled using a token bucket algorithm to respect Slack's limit of 1 message per second per channel.
-* **Failure Decoupling**: If Slack API returns HTTP `429` or `5xx`, messages are buffered in memory for retry up to 3 times before being dropped. Failures are recorded in `audit_events` without impacting core scanning operations.
+* **Token Bucket Throttling**: Limits outbound Slack notifications to 1 message per second per channel.
+* **Failure Decoupling**: If the Slack API returns HTTP `429` or `5xx`, messages are buffered in memory and retried up to 3 times before being dropped. Core scanning is never blocked.
 
 ---
 
 ## 7. What Slack MUST NOT Be Allowed To Do
 
-* ✕ Slack users cannot trigger arbitrary remote commands or shell evaluations.
+* ✕ Slack users cannot trigger arbitrary remote shell commands.
 * ✕ Slack cannot be used as an authentication provider for agent device enrollment.
-* ✕ Full raw evidence dumps (e.g., memory artifacts or registry dumps) must never be sent into Slack channels.
+* ✕ Full raw memory dumps or sensitive host files must never be dispatched to Slack.

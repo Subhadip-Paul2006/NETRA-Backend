@@ -1,8 +1,12 @@
 # NETRA — Deep Research, Ecosystem Analysis & Post-Mortem
 
-> **Document Status:** Approved Research Base  
-> **Authoritative Scope:** Comprehensive industry discovery, legacy codebase post-mortem, technological trade-offs, architectural decision rationales, and complete diagram inventory for NETRA.  
-> **Related Documents:** [ARCHITECTURE.md](./ARCHITECTURE.md), [PRD.md](./PRD.md), [SECURITY_CHECK.md](./SECURITY_CHECK.md)
+> **Overview**
+>
+> This document compiles the comprehensive academic research, industry ecosystem discovery, legacy post-mortem audits, comparative analysis of reference projects (including Drishti-Innofusion), and architectural decision rationale for NETRA (Network & Endpoint Threat Reconnaissance Architecture).
+
+**Status:** Approved Research Base  
+**Audience:** Security Researchers, Systems Architects, Students, Academic Reviewers  
+**Purpose:** Preserves the foundational discovery data, post-mortem findings, and comparative trade-off analyses justifying all architectural choices in NETRA.
 
 ---
 
@@ -12,28 +16,29 @@
 2. [Problem Space Discovery & Ecosystem Mindmap](#2-problem-space-discovery--ecosystem-mindmap)
 3. [Industry Landscape & Competitive Analysis](#3-industry-landscape--competitive-analysis)
 4. [Legacy NETRA Post-Mortem & Evolution Analysis](#4-legacy-netra-post-mortem--evolution-analysis)
-5. [The Identified Market & Technical Gap](#5-the-identified-market--technical-gap)
-6. [NETRA Differentiation Thesis](#6-netra-differentiation-thesis)
-7. [Network Intelligence & Topology Discovery Research](#7-network-intelligence--topology-discovery-research)
-8. [Graph vs. Relational Data Architecture Evaluation](#8-graph-vs-relational-data-architecture-evaluation)
-9. [Endpoint Agent Architecture & Language Evaluation](#9-endpoint-agent-architecture--language-evaluation)
-10. [Communication Protocol & Network Traversal Analysis](#10-communication-protocol--network-traversal-analysis)
-11. [Device Identity, Cryptography & Attestation Research](#11-device-identity-cryptography--attestation-research)
-12. [Task Orchestration & State Machine Modeling](#12-task-orchestration--state-machine-modeling)
-13. [Finding, Evidence & Risk Data Modeling](#13-finding-evidence--risk-data-modeling)
-14. [AI Boundaries & Decision Framework](#14-ai-boundaries--decision-framework)
-15. [Third-Party Integration Analysis (Slack & Discord)](#15-third-party-integration-analysis-slack--discord)
-16. [Supply Chain & Agent Update Security Research](#16-supply-chain--agent-update-security-research)
-17. [Core Deep-Thinking Questions Answered](#17-core-deep-thinking-questions-answered)
-18. [Visual Documentation & Diagram Inventory](#18-visual-documentation--diagram-inventory)
+5. [Drishti-Innofusion Reference Analysis](#5-drishti-innofusion-reference-analysis)
+6. [The Identified Market & Technical Gap](#6-the-identified-market--technical-gap)
+7. [NETRA Differentiation Thesis](#7-netra-differentiation-thesis)
+8. [Network Intelligence & Topology Discovery Research](#8-network-intelligence--topology-discovery-research)
+9. [Graph vs. Relational Data Architecture Evaluation](#9-graph-vs-relational-data-architecture-evaluation)
+10. [Endpoint Agent Architecture & Language Evaluation](#10-endpoint-agent-architecture--language-evaluation)
+11. [Communication Protocol & Network Traversal Analysis](#11-communication-protocol--network-traversal-analysis)
+12. [Device Identity, Cryptography & Attestation Research](#12-device-identity-cryptography--attestation-research)
+13. [Task Orchestration & State Machine Modeling](#13-task-orchestration--state-machine-modeling)
+14. [Finding, Evidence & Risk Data Modeling](#14-finding-evidence--risk-data-modeling)
+15. [AI Boundaries & Decision Framework](#15-ai-boundaries--decision-framework)
+16. [Third-Party Integration Analysis (Slack & Discord)](#16-third-party-integration-analysis-slack--discord)
+17. [Supply Chain & Agent Update Security Research](#17-supply-chain--agent-update-security-research)
+18. [Core Deep-Thinking Questions Answered](#18-core-deep-thinking-questions-answered)
+19. [Visual Documentation & Diagram Inventory](#19-visual-documentation--diagram-inventory)
 
 ---
 
 ## 1. Executive Research Summary
 
-Security infrastructure in 2026 presents a sharp divergence. On one side are enterprise Endpoint Detection and Response (EDR) platforms (CrowdStrike Falcon, Microsoft Defender for Endpoint, SentinelOne) that cost upwards of $150–$250 per host annually, require kernel-level drivers, and operate as closed cloud silos. On the other side are open-source host tools (osquery, Wazuh, auditd, Sysmon) that generate overwhelming volumes of uncurated event streams without relational network context, explainable risk models, or verifiable remediation.
+Defensive security infrastructure in 2026 presents a sharp divergence. Enterprise Endpoint Detection and Response (EDR) platforms (CrowdStrike Falcon, Microsoft Defender for Endpoint, SentinelOne) are closed, costly, and kernel-intrusive. Conversely, open-source host collectors (osquery, Wazuh, auditd) emit overwhelming, uncurated log streams lacking relational network context, explainable risk models, or closed-loop remediation.
 
-This research establishes the foundation for **NETRA** (Network & Endpoint Threat Reconnaissance Architecture). NETRA occupies the unaddressed middle ground: an open-source, lightweight (<20MB Go binary), topology-aware security platform that correlates **endpoint configuration posture** with **local network reachability** through a deterministic 8-stage evidence pipeline.
+This research establishes **NETRA** as an open-source, academic defensive platform that unifies **endpoint posture reconnaissance** with **local network topology** within a deterministic 10-stage evidence pipeline.
 
 ---
 
@@ -70,7 +75,7 @@ mindmap
 
 | System | Architecture & Language | Telemetry Source | Primary Strength | Critical Limitation for NETRA's Use Case |
 | :--- | :--- | :--- | :--- | :--- |
-| **osquery** | C++ daemon embedding SQLite | OS tables (processes, sockets, users) | Exposes OS state as standard SQL virtual tables | Pure telemetry collector; no built-in remediation, no topology synthesis, requires heavy third-party control planes (Fleet). |
+| **osquery** | C++ daemon embedding SQLite | OS tables (processes, sockets, users) | Exposes OS state as standard SQL virtual tables | Pure telemetry collector; no built-in remediation, no topology synthesis, requires heavy third-party control planes. |
 | **Velociraptor** | Single Go binary with custom VQL engine | Raw NTFS, memory, MFT, process tables | Fast, flexible digital forensics and incident hunting across 10,000+ endpoints | Designed for point-in-time forensic investigations, steep learning curve (VQL), not built for continuous posture reasoning. |
 | **Wazuh** | C agent + Python scripts + OpenSearch | Log files (Syslog, EventLog), FIM, rootcheck | Broad compliance mapping (PCI-DSS, SOC 2) | High server operational complexity (OpenSearch/Elastic cluster), outdated XML rule syntax, brittle regex decoders. |
 | **LimaCharlie** | C/C++ sensor + cloud event routing | Real-time EDR telemetry ring | "SecOps Cloud" primitives with granular API control | Proprietary commercial cloud; not an open-source, topology-aware self-hostable platform. |
@@ -81,16 +86,18 @@ mindmap
 
 ## 4. Legacy NETRA Post-Mortem & Evolution Analysis
 
+An audit of the legacy repository (`https://github.com/Subhadip-Paul2006/NETRA-agent`) highlighted key architectural anti-patterns that were eliminated in the new design:
+
 ```mermaid
 flowchart TD
-    subgraph LegacyNETRA["Legacy NETRA (Post-Mortem Findings)"]
+    subgraph LegacyNETRA["Legacy NETRA Anti-Patterns (Rejected)"]
         L1["Python Monorepo + PyInstaller<br/>(Bloated >60MB binary, 50MB RAM idle)"]
         L2["CLI Substring Scraping<br/>(`netsh`, `ufw` text checks; broken on non-English OS)"]
         L3["Discord as Primary Control Plane<br/>(2k char limits, rate limits, no enterprise RBAC)"]
         L4["DB Nonce Table Writes<br/>(High write amplification on heartbeats)"]
     end
 
-    subgraph Evolution["Architectural Evolution & Lessons"]
+    subgraph Evolution["New NETRA Architectural Decisions (Adopted)"]
         E1["Go Static Binary (`CGO_ENABLED=0`, <20MB, <25MB RAM)"]
         E2["Native OS Syscalls & COM APIs (`GetExtendedTcpTable`, Netlink)"]
         E3["CLI-First (`netra --json`) + Slack Approval Webhooks"]
@@ -105,7 +112,19 @@ flowchart TD
 
 ---
 
-## 5. The Identified Market & Technical Gap
+## 5. Drishti-Innofusion Reference Analysis
+
+The open-source reference project **Drishti-Innofusion** (`https://github.com/soumyachk101/Drishti-Innofusion/`) was evaluated strictly for comparative academic research:
+* **Valuable Concepts Observed**: Exploring multi-workstation telemetry and correlating browser activity with external connection flows.
+* **Architectural Shortcomings Identified**:
+  - Direct database queries from unauthenticated endpoints (creating privilege escalation risks).
+  - Heavy reliance on scripting interpreters without binary sandboxing.
+  - Incomplete offline buffering resulting in data loss during network drops.
+* **NETRA's Differentiators**: Decoupled control API, local-first SQLite WAL buffering, strict Ed25519 asymmetric attestation, and zero inbound listening ports.
+
+---
+
+## 6. The Identified Market & Technical Gap
 
 ```mermaid
 flowchart LR
@@ -119,99 +138,77 @@ flowchart LR
 
 ---
 
-## 6. NETRA Differentiation Thesis
+## 7. NETRA Differentiation Thesis
 
 ```mermaid
 flowchart TD
-    subgraph Pipeline["NETRA 8-Stage Security Reasoning Pipeline"]
+    subgraph Pipeline["NETRA 10-Stage Security Reasoning Pipeline"]
         direction LR
-        Obs["1. Observation<br/>(Raw Fact)"] --> Ev["2. Evidence<br/>(Hashed Artifact)"]
-        Ev --> Fnd["3. Finding<br/>(Deterministic Rule)"]
-        Fnd --> Rel["4. Relationship<br/>(Topology Context)"]
-        Rel --> Rsk["5. Risk<br/>(Blast Radius)"]
-        Rsk --> Exp["6. Explanation<br/>(Human/AI Digest)"]
-        Exp --> Rec["7. Recommendation<br/>(Safe Fix)"]
-        Rec --> Val["8. Validation<br/>(Post-Check)"]
+        Obs["1. Observation<br/>(Raw Fact)"] --> Norm["2. Normalization<br/>(Schema)"]
+        Norm --> Corr["3. Correlation<br/>(Socket+PID)"]
+        Corr --> Ev["4. Evidence<br/>(SHA-256)"]
+        Ev --> Fnd["5. Finding<br/>(Deterministic)"]
+        Fnd --> Rsk["6. Risk<br/>(Score)"]
+        Rsk --> Pol["7. Policy<br/>(Action)"]
+        Pol --> Act["8. Remediation<br/>(Safe Fix)"]
+        Act --> Val["9. Verification<br/>(Probe)"]
+        Val --> Aud["10. Audit<br/>(Log)"]
     end
 ```
 
 ---
 
-## 7. Network Intelligence & Topology Discovery Research
+## 8. Network Intelligence & Topology Discovery Research
 
-```mermaid
-flowchart TD
-    subgraph Stages["Network Discovery Methodology"]
-        S1["STAGE 1: Passive Local Extraction (Zero Traffic)<br/>• Read Kernel Routing Tables<br/>• Read OS ARP & Neighbor Caches (`ip neigh`, `GetIpNetTable2`)"]
-        S2["STAGE 2: Non-Intrusive Directed Probing<br/>• Unicast Reverse DNS (PTR) Queries<br/>• Low-overhead ICMP/UDP Traceroute to Gateways"]
-        S3["STAGE 3: Controlled Active Probing (Explicit Policy)<br/>• Unicast Connect probes to ports 22, 80, 445, 3389"]
-    end
-
-    S1 --> S2 --> S3
-```
+* **Stage 1 (Passive Extraction)**: Zero-traffic reading of kernel routing tables and OS neighbor/ARP caches (`GetIpNetTable2` on Windows, `ip neigh` on Linux).
+* **Stage 2 (Directed Inferences)**: Gateway traceroute and reverse DNS (PTR) queries.
+* **Stage 3 (Controlled Micro-Probing)**: Policy-gated unicast probes to standard ports (22, 80, 445, 3389).
 
 ---
 
-## 8. Graph vs. Relational Data Architecture Evaluation
+## 9. Graph vs. Relational Data Architecture Evaluation
 
-```mermaid
-flowchart LR
-    subgraph GraphDecision["Graph Storage Decision Architecture"]
-        Dedicated["Dedicated Graph DB (Neo4j)<br/>• High JVM memory overhead<br/>• Dual-write sync bugs<br/>• Complex clustering<br/>✕ REJECTED"]
-        PostgresCTE["PostgreSQL 16 Recursive CTEs<br/>• ACID transaction boundaries<br/>• Native Row-Level Security<br/>• <10ms path queries (<50k nodes)<br/>★ SELECTED"]
-    end
-```
+* **Selected Approach**: **PostgreSQL 16 Recursive Common Table Expressions (CTEs)**.
+* **Rationale**: Enables sub-10ms graph path queries for up to 50,000 nodes within the existing ACID transaction boundary; completely eliminates the operational complexity of managing a separate Neo4j cluster.
 
 ---
 
-## 9. Endpoint Agent Architecture & Language Evaluation
+## 10. Endpoint Agent Architecture & Language Evaluation
 
-```mermaid
-flowchart TD
-    subgraph AgentLanguage["Language Selection Matrix"]
-        Python["Python: ✕ Rejected (Heavy runtime, slow startup)"]
-        GoLang["Go: ★ Selected (Static binary, native syscalls, fast cold-start)"]
-        Rust["Rust: Viable (Steep learning curve, slower velocity)"]
-        CPP["C++: ✕ Rejected (Memory safety liability)"]
-    end
-```
+* **Selected Language**: **Go (Golang 1.22+)** with optional native Rust extensions.
+* **Rationale**: Single static binary (<20MB), low idle memory (<25MB RAM), sub-millisecond cold start, and robust standard library support for cross-platform system calls.
 
 ---
 
-## 10. Communication Protocol & Network Traversal Analysis
+## 11. Communication Protocol & Network Traversal Analysis
 
-* **Selected Protocol**: Persistent **WebSocket over TLS 1.3 (WSS)** with **Protocol Buffers (Protobuf v3)**.
-* **Why Outbound WSS**: Requires **zero open inbound ports** on client firewalls, effortlessly traverses corporate NAT gateways, and supports sub-millisecond bidirectional task dispatch.
-* **Fallback Protocol**: Authenticated **HTTPS Long Polling** for strict enterprise proxy environments.
+* **Selected Protocol**: Persistent **WebSocket over TLS 1.3 (WSS)** with **Protocol Buffers v3**.
+* **Rationale**: Traverses corporate NAT gateways with zero open inbound ports on the client firewall, while Protobuf minimizes bandwidth.
 
 ---
 
-## 11. Device Identity, Cryptography & Attestation Research
+## 12. Device Identity, Cryptography & Attestation Research
 
 * **Cryptographic Standard**: **Ed25519 (RFC 8032)** asymmetric public-key cryptography.
-* **Key Storage**: Windows DPAPI (`CryptProtectData`), Linux SecretService/Keyring, macOS Keychain.
-* **Payload Signing**: Canonical string with timestamp, nonce, request ID, and body SHA-256 hash.
+* **Key Storage**: Windows DPAPI, Linux SecretService, macOS Keychain.
 
 ---
 
-## 12. Task Orchestration & State Machine Modeling
+## 13. Task Orchestration & State Machine Modeling
 
-Tasks follow an explicit, durable state machine managed by PostgreSQL transactions:
-$$\text{PENDING} \longrightarrow \text{DISPATCHED} \longrightarrow \text{RUNNING} \longrightarrow \text{COMPLETED} \ (\text{or } \text{FAILED} / \text{CANCELLED})$$
+Tasks follow an explicit state machine:
+$$\text{PENDING} \longrightarrow \text{DISPATCHED} \longrightarrow \text{LEASED} \longrightarrow \text{RUNNING} \longrightarrow \text{COMPLETED} \ (\text{or } \text{FAILED} / \text{CANCELLED})$$
 
 ---
 
-## 13. Finding, Evidence & Risk Data Modeling
+## 14. Finding, Evidence & Risk Data Modeling
 
-* **Observation**: Raw technical fact (e.g., `Port 445 listening on 0.0.0.0`).
-* **Evidence**: Cryptographically hashed proof artifact (JSON dump + SHA-256).
-* **Finding**: Policy violation or vulnerability identified by deterministic rules.
-* **Deduplication Fingerprint**:
+* **Deduplication Fingerprint Formula**:
   $$\text{Fingerprint} = \text{SHA-256}(\text{TenantID} \parallel \text{DeviceID} \parallel \text{Capability} \parallel \text{RuleID} \parallel \text{ResourceKey})$$
 
 ---
 
-## 14. AI Boundaries & Decision Framework
+## 15. AI Boundaries & Decision Framework
 
 ```mermaid
 flowchart TD
@@ -226,105 +223,91 @@ flowchart TD
 
 ---
 
-## 15. Third-Party Integration Analysis (Slack & Discord)
+## 16. Third-Party Integration Analysis (Slack & Discord)
 
-* **Slack**: Positioned as an **Asynchronous Notification & Human Approval Gateway**. Employs Block Kit alerts and interactive buttons (`[Approve Remediation]`) with dual-custody approval support.
-* **Discord**: Demoted from the core architecture to an **Optional Outbound Webhook Notifier** for homelabs and students.
-
----
-
-## 16. Supply Chain & Agent Update Security Research
-
-Release binaries are compiled hermetically (`CGO_ENABLED=0`), signed with **Cosign** and an **Offline Root Ed25519 Key**, verified via **The Update Framework (TUF)**, and installed via atomic binary swaps.
+* **Slack**: Positioned as an **Asynchronous Notification & Human Approval Gateway** utilizing Block Kit interactive buttons.
+* **Discord**: Demoted to an **Optional Outbound Webhook Notifier** for homelabs and students.
 
 ---
 
-## 17. Core Deep-Thinking Questions Answered
+## 17. Supply Chain & Agent Update Security Research
 
-1. **Fundamental Problem**: Contextual disconnect between endpoint posture and network reachability.
-2. **Target Users**: IT admins, DevSecOps engineers, and security teams at SMEs (50–2,000 nodes) and MSSPs.
-3. **Core Differentiator**: Deterministic 8-stage reasoning pipeline + automated topology synthesis in a single static Go binary (<20MB).
-4. **Non-Goals**: No real-time kernel file filter drivers, no arbitrary remote shell, no autonomous AI remediation.
-5. **MVP Goal**: Prove that a single Go binary can enroll via Ed25519, stream posture/topology over WSS, and output deduplicated findings via a clean CLI (`netra`).
+Release binaries are compiled hermetically (`CGO_ENABLED=0`), signed keylessly with **Cosign**, verified via **The Update Framework (TUF)**, and installed via atomic binary swaps.
 
 ---
 
-## 18. Visual Documentation & Diagram Inventory
+## 18. Core Deep-Thinking Questions Answered
 
-The following authoritative inventory tracks every visual diagram engineered across the NETRA documentation suite:
+1. **Fundamental Problem**: Contextual disconnect between endpoint configuration posture and local network reachability.
+2. **Target Audience**: Students, security researchers, DevSecOps engineers, and lab administrators.
+3. **Core Differentiator**: Deterministic 10-stage evidence pipeline + passive topology synthesis in a single static Go binary (<20MB).
+4. **Non-Goals**: No kernel file filter drivers, no arbitrary remote shell, no commercial subscription model.
+5. **MVP Goal**: Validate that a single Go binary can enroll via Ed25519, stream posture over WSS, and output deduplicated findings via a clean CLI (`netra`).
+
+---
+
+## 19. Visual Documentation & Diagram Inventory
+
+The following table catalogs all visual diagrams engineered across the documentation suite:
 
 | Diagram ID | Document | Diagram Title | Mermaid Type | Explanatory Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| **DIA-001** | `README.md` | NETRA Reasoning Pipeline | `flowchart LR` | Summarize the 8-stage deterministic evidence pipeline at a glance |
-| **DIA-002** | `README.md` | High-Level System Topology | `flowchart TD` | Illustrate the operator, control plane, and endpoint relationships |
-| **DIA-003** | `README.md` | Documentation Navigation Map | `flowchart TD` | Guide readers across the 16-document engineering suite |
-| **DIA-004** | `PRD.md` | NETRA Core Mission | `flowchart TD` | Connect product pillars to the core value proposition |
-| **DIA-005** | `PRD.md` | The Security Context Dilemma | `flowchart TD` | Highlight the void between EDRs and open-source log tools |
-| **DIA-006** | `PRD.md` | Problem-to-Solution Mapping | `flowchart TD` | Map user pain points directly to NETRA capabilities |
-| **DIA-007** | `PRD.md` | Product Scope & Boundary Model | `flowchart TD` | Visually separate core goals from explicit non-goals |
-| **DIA-008** | `PRD.md` | Core Capabilities Matrix | `flowchart TD` | Display the 7 core scanner capabilities |
-| **DIA-009** | `PRD.md` | Alex's Operational Journey | `journey` | Illustrate the end-to-end user experience of onboarding to fix |
-| **DIA-010** | `PRD.md` | MVP Boundaries (Phases 1–4) | `flowchart TD` | Clarify Must Have, Should Have, and Out-of-Scope boundaries |
-| **DIA-011** | `TRD.md` | PRD to TRD Requirements Map | `flowchart TD` | Connect product goals to specific technical requirements |
-| **DIA-012** | `TRD.md` | System Component Architecture | `flowchart TD` | Show detailed boundaries between supervisor, worker, and backend |
-| **DIA-013** | `TRD.md` | PostgreSQL Entity-Relationship Model | `erDiagram` | Define relational entities, cardinalities, and foreign keys |
-| **DIA-014** | `TRD.md` | Performance & Resource Budgets | `flowchart LR` | Detail binary size, memory ceilings, and latency thresholds |
-| **DIA-015** | `TRD.md` | Offline State & Reconnect Model | `stateDiagram-v2` | Detail transition into local SQLite buffering and recovery |
-| **DIA-016** | `ARCHITECTURE.md` | Complete System Topology | `flowchart TD` | Master architectural diagram showing all services and flows |
-| **DIA-017** | `ARCHITECTURE.md` | Trust Boundaries & Isolation | `flowchart TD` | Delineate trust levels across userspace, supervisor, cloud, and DB |
-| **DIA-018** | `ARCHITECTURE.md` | Component Architecture Subsystems | `flowchart TD` | Detail agent and control plane subsystem building blocks |
-| **DIA-019** | `ARCHITECTURE.md` | Task Execution Sequence | `sequenceDiagram` | Show handshake, task dispatch, and result ingestion |
-| **DIA-020** | `ARCHITECTURE.md` | Scalability Progression Milestones | `flowchart TD` | Show growth trajectory from Level 1 to Level 4 |
-| **DIA-021** | `ARCHITECTURE.md` | Fault Isolation Domains | `flowchart TD` | Show blast-radius containment across crashes and outages |
-| **DIA-022** | `SYSTEM_DESIGN.md` | Runtime System Components | `flowchart TD` | Connect agent components, WSS ingress, and SQL core |
-| **DIA-023** | `SYSTEM_DESIGN.md` | Device Enrollment Lifecycle | `sequenceDiagram` | Multi-actor sequence for token validation and Ed25519 pairing |
-| **DIA-024** | `SYSTEM_DESIGN.md` | Agent Connection & WSS Auth | `sequenceDiagram` | Detail cryptographic handshake and heartbeat loop |
-| **DIA-025** | `SYSTEM_DESIGN.md` | Task Orchestration State Machine | `stateDiagram-v2` | State transitions for task dispatch, lease, and completion |
-| **DIA-026** | `SYSTEM_DESIGN.md` | Scanner Execution & Sandboxing | `sequenceDiagram` | Detail process limit application and syscall invocation |
-| **DIA-027** | `SYSTEM_DESIGN.md` | Finding Lifecycle State Machine | `stateDiagram-v2` | State transitions for finding deduplication and resolution |
-| **DIA-028** | `SYSTEM_DESIGN.md` | Topology Synthesis Sequence | `sequenceDiagram` | Multi-agent ARP correlation and graph link generation |
-| **DIA-029** | `SYSTEM_DESIGN.md` | Offline Buffering & Sync Sequence | `sequenceDiagram` | Local SQLite FIFO write and recovery flush sequence |
-| **DIA-030** | `SYSTEM_DESIGN.md` | Concurrency & Resource Controls | `flowchart TD` | Worker goroutine capping and heap memory guard logic |
-| **DIA-031** | `SECURITY_CHECK.md` | Core Security Tenets | `flowchart TD` | Display zero-trust architectural principles |
-| **DIA-032** | `SECURITY_CHECK.md` | Security Trust Boundaries | `flowchart TD` | Map trust levels from host userspace to PostgreSQL RLS |
-| **DIA-033** | `SECURITY_CHECK.md` | Ed25519 Key Lifecycle & Crypto | `sequenceDiagram` | Key generation, local storage, and frame signing sequence |
-| **DIA-034** | `SECURITY_CHECK.md` | PostgreSQL RLS Engine Policy | `flowchart TD` | Detail `SET LOCAL` tenant scoping and DB filter enforcement |
-| **DIA-035** | `SECURITY_CHECK.md` | Capability Whitelist vs. Shell | `flowchart LR` | Detail approved scan capabilities vs prohibited shell calls |
-| **DIA-036** | `SECURITY_CHECK.md` | Emergency Device Revocation | `sequenceDiagram` | Revocation trigger, WSS drop, and task cancellation |
-| **DIA-037** | `SECURITY_CHECK.md` | AI Security Air-Gap Model | `flowchart TD` | Telemetry sanitization and advisory air-gap boundary |
-| **DIA-038** | `SECURITY_CHECK.md` | TUF Signed Auto-Update Workflow | `sequenceDiagram` | Manifest signature check, self-test, and atomic swap |
-| **DIA-039** | `SECURITY_CHECK.md` | STRIDE Threat Model Surface Map | `flowchart TD` | Map STRIDE categories to architectural mitigations |
-| **DIA-040** | `OS_VERSATILE.md` | OS Adapter Abstraction Layer | `flowchart TD` | Go interface to Windows/Linux/macOS syscall mapping |
-| **DIA-041** | `OS_VERSATILE.md` | Windows Native Syscall Adapter | `flowchart LR` | Map `Iphlpapi.dll`, COM, and DPAPI implementations |
-| **DIA-042** | `OS_VERSATILE.md` | Linux Native Netlink Adapter | `flowchart LR` | Map `rtnetlink`, procfs, and nftables implementations |
-| **DIA-043** | `OS_VERSATILE.md` | macOS Native Sysctl Adapter | `flowchart LR` | Map `sysctl`, BSD routing sockets, and Keychain |
-| **DIA-044** | `OS_VERSATILE.md` | Cross-Platform Package Formats | `flowchart TD` | Display `.exe`, `.deb`/`.rpm`, and Mach-O packaging |
-| **DIA-045** | `OS_VERSATILE.md` | Privilege & Degradation Hierarchy | `flowchart TD` | Standard user vs. elevated daemon capability scopes |
-| **DIA-046** | `API.md` | API Authentication Architecture | `flowchart TD` | JWT user auth vs. Ed25519 device auth layers |
-| **DIA-047** | `API.md` | WSS Stream Protocol Exchange | `sequenceDiagram` | Bidirectional frame exchange for dispatch and results |
-| **DIA-048** | `UI_UX.md` | CLI Design Principles | `flowchart LR` | Summary of Unix CLI philosophy |
-| **DIA-049** | `UI_UX.md` | CLI Command Hierarchy Tree | `flowchart TD` | Complete tree of `netra` CLI subcommands and flags |
-| **DIA-050** | `UI_UX.md` | Stream Separation Architecture | `flowchart TD` | Visualizing stdout data piping vs. stderr UI output |
-| **DIA-051** | `UI_UX.md` | Interactive vs. CI Mode Check | `flowchart TD` | `isatty` detection and terminal spinner handling |
-| **DIA-052** | `USAGE.md` | Operational User Lifecycle | `flowchart TD` | Install ──> Enroll ──> Scan ──> View ──> Fix ──> Validate |
-| **DIA-053** | `USAGE.md` | Diagnostics & Troubleshooting Tree | `flowchart TD` | Decision tree for troubleshooting offline agents |
-| **DIA-054** | `SLACK.md` | Slack Cloud Integration Gateway | `flowchart LR` | NETRA backend to Slack bot alert delivery |
-| **DIA-055** | `SLACK.md` | Interactive Approval Sequence | `sequenceDiagram` | Human-in-the-loop remediation authorization sequence |
-| **DIA-056** | `SLACK.md` | Least-Privilege OAuth Scopes | `flowchart TD` | Permitted scopes vs. strictly prohibited scopes |
-| **DIA-057** | `DISCORD.md` | Discord Outbound Webhook Flow | `flowchart LR` | One-way webhook egress to Discord channel |
-| **DIA-058** | `DISCORD.md` | Prohibited Discord Actions | `flowchart TD` | Visually reinforce restrictions on Discord integration |
-| **DIA-059** | `CI_CD.md` | SLSA Level 3 Supply Chain Flow | `flowchart LR` | Build ──> Scan ──> SBOM ──> Cosign Sign ──> Release |
-| **DIA-060** | `CI_CD.md` | Automated PR Quality Gates | `flowchart TD` | 5-stage automated check matrix for pull requests |
-| **DIA-061** | `CI_CD.md` | Release Smoke Test & Verification | `flowchart TD` | Clean VM provisioning and automated rollback trigger |
-| **DIA-062** | `WORKFLOW.md` | Git Branching Model | `gitGraph` | Git flow branching, feature merging, and patch tags |
-| **DIA-063** | `WORKFLOW.md` | Feature Development Lifecycle | `flowchart TD` | Issue ──> Design/ADR ──> Code ──> PR ──> Merge |
-| **DIA-064** | `WORKFLOW.md` | Emergency Hotfix Release Flow | `flowchart TD` | Rapid vulnerability patch and expedited release flow |
-| **DIA-065** | `PHASES.md` | Master Timeline Roadmap | `timeline` | Chronological milestone roadmap (Phases 0 to 4) |
-| **DIA-066** | `PHASES.md` | Phase Dependency & Gating Graph | `flowchart TD` | Dependency gating flow from Phase 0 to Phase 4 |
-| **DIA-067** | `RESEARCH.md` | Security Ecosystem Mindmap | `mindmap` | Landscape categorization and identification of the gap |
-| **DIA-068** | `RESEARCH.md` | Legacy vs. New Architecture Flow | `flowchart TD` | Post-mortem lessons translated to architectural decisions |
-| **DIA-069** | `RESEARCH.md` | 4-Pillar Market Gap | `flowchart LR` | Visualizing the four core dimensions of NETRA's gap |
-| **DIA-070** | `RESEARCH.md` | Network Discovery Methodology | `flowchart TD` | 3-stage discovery model from passive to active |
-| **DIA-071** | `RESEARCH.md` | Graph Storage Decision Architecture | `flowchart LR` | Justification for PostgreSQL CTEs over Neo4j |
-| **DIA-072** | `RESEARCH.md` | Language Selection Matrix | `flowchart TD` | Evaluation of Go vs. Python, Rust, and C++ |
-| **DIA-073** | `RESEARCH.md` | AI Role & Boundary Model | `flowchart TD` | Deterministic engine core air-gapped from advisory AI |
+| **DIA-001** | `README.md` | NETRA System Topology | `flowchart TD` | Illustrates host, control plane, and integration relationships |
+| **DIA-002** | `README.md` | Documentation Navigation Map | `flowchart TD` | Guides readers across the 15-document specification suite |
+| **DIA-003** | `docs/PRD.md` | NETRA Academic Mission | `flowchart TD` | Connects product pillars to the core value proposition |
+| **DIA-004** | `docs/PRD.md` | The Security Context Void | `flowchart TD` | Highlights the void between EDRs and open-source log tools |
+| **DIA-005** | `docs/PRD.md` | Explicit Non-Goals | `flowchart TD` | Visually separates educational goals from non-goals |
+| **DIA-006** | `docs/PRD.md` | Alex's Operational Journey | `journey` | Illustrates the end-to-end user experience of onboarding to fix |
+| **DIA-007** | `docs/TRD.md` | Runtime Resource Ceilings | `flowchart LR` | Details binary size, memory ceilings, and latency budgets |
+| **DIA-008** | `docs/TRD.md` | Automated Test Matrix | `flowchart TD` | Connects unit, integration, and E2E verification suites |
+| **DIA-009** | `docs/ARCHITECTURE.md`| Core Architecture Principles | `flowchart LR` | Summarizes foundational engineering tenets |
+| **DIA-010** | `docs/ARCHITECTURE.md`| High-Level System Topology | `flowchart TD` | Master architectural diagram showing all services and flows |
+| **DIA-011** | `docs/ARCHITECTURE.md`| Dual Runtime Execution Modes | `flowchart TD` | Compares interactive CLI mode with background daemon mode |
+| **DIA-012** | `docs/ARCHITECTURE.md`| Agent Internal Subsystems | `flowchart TD` | Details agent internal probes, deduplication, and queues |
+| **DIA-013** | `docs/ARCHITECTURE.md`| Network Topology Synthesis | `flowchart LR` | Shows cross-agent ARP correlation and PostgreSQL CTE graphs |
+| **DIA-014** | `docs/ARCHITECTURE.md`| Controlled Remediation Flow | `flowchart TD` | Pre-flight check, native OS change, and post-validation loop |
+| **DIA-015** | `docs/ARCHITECTURE.md`| OS Abstraction Adapters | `flowchart TD` | Maps Go core to Win32 COM, Netlink, and BSD socket layers |
+| **DIA-016** | `docs/ARCHITECTURE.md`| Trust & Security Boundaries | `flowchart TD` | Delineates untrusted hosts, local DACLs, and control plane RLS |
+| **DIA-017** | `docs/SYSTEM_DESIGN.md`| Process Models & Dual Modes | `flowchart TD` | Connects CLI invocation and two-tier background daemon |
+| **DIA-018** | `docs/SYSTEM_DESIGN.md`| System Startup & Keyring | `sequenceDiagram` | OS service startup, SQLite migration, and DPAPI key retrieval |
+| **DIA-019** | `docs/SYSTEM_DESIGN.md`| Device Identity State Machine | `stateDiagram-v2` | State transitions for keypair generation and attestation |
+| **DIA-020** | `docs/SYSTEM_DESIGN.md`| Local SQLite Entity Schema | `erDiagram` | Schema for local config, observation queue, and scan history |
+| **DIA-021** | `docs/SYSTEM_DESIGN.md`| Task Orchestration States | `stateDiagram-v2` | State transitions for task dispatch, lease, and completion |
+| **DIA-022** | `docs/SYSTEM_DESIGN.md`| 3-Tier Topology Discovery | `flowchart TD` | Connects passive ARP, directed traceroute, and micro-probing |
+| **DIA-023** | `docs/SYSTEM_DESIGN.md`| Browser Exposure Observation | `sequenceDiagram` | Correlates browser PID with remote IP and DNS cache |
+| **DIA-024** | `docs/SYSTEM_DESIGN.md`| Deterministic CVE Matching | `flowchart LR` | Package inventory mapping against cached NVD/OSV feeds |
+| **DIA-025** | `docs/SYSTEM_DESIGN.md`| 10-Stage Data Pipeline | `flowchart TD` | Full data lifecycle from observation to immutable audit log |
+| **DIA-026** | `docs/SYSTEM_DESIGN.md`| Remediation Verification Loop | `stateDiagram-v2` | State transitions for approval, pre-flight, and rollback |
+| **DIA-027** | `docs/SYSTEM_DESIGN.md`| Offline Sync State Machine | `stateDiagram-v2` | State transitions for offline FIFO queueing and recovery |
+| **DIA-028** | `docs/SYSTEM_DESIGN.md`| Device Enrollment Flow | `sequenceDiagram` | Multi-actor sequence for token validation and Ed25519 pairing |
+| **DIA-029** | `docs/SYSTEM_DESIGN.md`| Finding Deduplication Flow | `sequenceDiagram` | Ingestion, SHA-256 fingerprint check, and upsert sequence |
+| **DIA-030** | `docs/SECURITY_CHECK.md`| Core Security Tenets | `flowchart TD` | Displays zero-trust architectural principles |
+| **DIA-031** | `docs/SECURITY_CHECK.md`| Capability Whitelist vs Shell | `flowchart LR` | Details approved capabilities vs prohibited shell calls |
+| **DIA-032** | `docs/SECURITY_CHECK.md`| Remediation Approval Sequence | `sequenceDiagram` | Human operator authorization and post-validation sequence |
+| **DIA-033** | `docs/UI_UX.md` | CLI Command Hierarchy Tree | `flowchart TD` | Complete tree of `netra` CLI subcommands and flags |
+| **DIA-034** | `docs/UI_UX.md` | Stream Separation Architecture| `flowchart TD` | Visualizing stdout data piping vs. stderr UI output |
+| **DIA-035** | `docs/UI_UX.md` | Interactive vs. CI Mode Check | `flowchart TD` | `isatty` detection and terminal spinner handling |
+| **DIA-036** | `docs/USAGE.md` | Operational User Lifecycle | `flowchart TD` | Install ──> Enroll ──> Scan ──> View ──> Fix ──> Validate |
+| **DIA-037** | `docs/USAGE.md` | Diagnostics Decision Tree | `flowchart TD` | Decision tree for troubleshooting offline agents |
+| **DIA-038** | `docs/OS_VERSATILE.md` | OS Adapter Abstraction | `flowchart TD` | Go interface to Windows/Linux/macOS syscall mapping |
+| **DIA-039** | `docs/OS_VERSATILE.md` | Privilege Degradation Tree | `flowchart TD` | Elevated daemon context vs unprivileged user scopes |
+| **DIA-040** | `docs/API.md` | API Calling Actor Boundaries | `flowchart TD` | Separates Agent API, Control API, and Integration API |
+| **DIA-041** | `docs/API.md` | Control Plane Relational Model| `erDiagram` | PostgreSQL entities, cardinalities, and foreign keys |
+| **DIA-042** | `docs/SLACK.md` | Slack Integration Gateway | `flowchart LR` | NETRA backend to Slack bot alert delivery |
+| **DIA-043** | `docs/SLACK.md` | Interactive Approval Sequence | `sequenceDiagram` | Human-in-the-loop remediation authorization sequence |
+| **DIA-044** | `docs/SLACK.md` | Least-Privilege OAuth Scopes | `flowchart TD` | Permitted scopes vs. strictly prohibited scopes |
+| **DIA-045** | `docs/DISCORD.md` | Discord Webhook Architecture | `flowchart LR` | One-way webhook egress to Discord channel |
+| **DIA-046** | `docs/DISCORD.md` | Prohibited Discord Actions | `flowchart TD` | Visually reinforces restrictions on Discord integration |
+| **DIA-047** | `docs/CI_CD.md` | SLSA Level 3 Supply Chain Flow| `flowchart LR` | Build ──> Scan ──> SBOM ──> Cosign Sign ──> Release |
+| **DIA-048** | `docs/CI_CD.md` | Automated PR Quality Gates | `flowchart TD` | 5-stage automated check matrix for pull requests |
+| **DIA-049** | `docs/CI_CD.md` | Release Smoke Test & Rollback | `flowchart TD` | Clean VM provisioning and automated rollback trigger |
+| **DIA-050** | `docs/WORKFLOW.md` | Git Branching Model | `gitGraph` | Git flow branching, feature merging, and patch tags |
+| **DIA-051** | `docs/WORKFLOW.md` | Feature Development Lifecycle | `flowchart TD` | Issue ──> Design/ADR ──> Code ──> PR ──> Merge |
+| **DIA-052** | `docs/WORKFLOW.md` | Emergency Hotfix Release Flow | `flowchart TD` | Rapid vulnerability patch and expedited release flow |
+| **DIA-053** | `docs/PHASES.md` | Master Timeline Roadmap | `timeline` | Chronological milestone roadmap (Phases 0 to 17) |
+| **DIA-054** | `docs/PHASES.md` | Phase Dependency & Gating Graph| `flowchart TD` | Dependency gating flow from Phase 0 to Phase 17 |
+| **DIA-055** | `docs/RESEARCH.md` | Security Ecosystem Mindmap | `mindmap` | Landscape categorization and identification of the gap |
+| **DIA-056** | `docs/RESEARCH.md` | Legacy vs. New Architecture | `flowchart TD` | Post-mortem lessons translated to architectural decisions |
+| **DIA-057** | `docs/RESEARCH.md` | 4-Pillar Market Gap | `flowchart LR` | Visualizing the four core dimensions of NETRA's gap |
+| **DIA-058** | `docs/RESEARCH.md` | 10-Stage Reasoning Pipeline | `flowchart TD` | Full deterministic reasoning pipeline |
+| **DIA-059** | `docs/RESEARCH.md` | AI Role & Boundary Model | `flowchart TD` | Deterministic engine core air-gapped from advisory AI |

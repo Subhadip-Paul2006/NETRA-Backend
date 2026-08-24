@@ -1,234 +1,254 @@
-# NETRA — System Architecture & Architectural Decision Records (ADRs)
+# NETRA — Comprehensive System Architecture & Design Principles
 
-> **Document Status:** Approved Architecture  
-> **Target Version:** v1.0.0-MVP  
-> **Authoritative Scope:** Comprehensive system architecture, component boundaries, data flow topologies, and Architectural Decision Records (ADRs) for NETRA.  
-> **Related Documents:** [SYSTEM_DESIGN.md](./SYSTEM_DESIGN.md), [SECURITY_CHECK.md](./SECURITY_CHECK.md), [TRD.md](./TRD.md)
+> **Overview**
+>
+> This document provides the master technical architecture for NETRA (Network & Endpoint Threat Reconnaissance Architecture). It establishes the core design principles, runtime component subsystems, local-first storage models, cloud coordination layers, browser exposure abstractions, and architectural decision records (ADRs) governing the platform.
+
+**Status:** Specified / Designed  
+**Audience:** System Architects, Core Developers, Security Researchers, Technical Contributors  
+**Purpose:** Serves as the authoritative architectural reference for all NETRA engineering implementations and component interactions.
 
 ---
 
 ## Contents
 
-1. [Architectural Overview](#1-architectural-overview)
-2. [Architectural Principles](#2-architectural-principles)
-3. [System Boundaries & Trust Domains](#3-system-boundaries--trust-domains)
-4. [Component Architecture](#4-component-architecture)
-5. [Network Topology & Data Flow](#5-network-topology--data-flow)
-6. [Architectural Decision Records (ADRs)](#6-architectural-decision-records-adrs)
-7. [Scalability & Evolution Strategy](#7-scalability--evolution-strategy)
-8. [Failure Domains & Fault Isolation](#8-failure-domains--fault-isolation)
+1. [Architectural Principles & Academic Identity](#1-architectural-principles--academic-identity)
+2. [High-Level System Topology](#2-high-level-system-topology)
+3. [Dual Runtime Architecture (Daemon vs. CLI)](#3-dual-runtime-architecture-daemon-vs-cli)
+4. [Endpoint Agent Internal Subsystems](#4-endpoint-agent-internal-subsystems)
+5. [Local-First Data Architecture (SQLite Core)](#5-local-first-data-architecture-sqlite-core)
+6. [Network Intelligence & Topology Architecture](#6-network-intelligence--topology-architecture)
+7. [Browser & Web Exposure Observation Subsystem](#7-browser--web-exposure-observation-subsystem)
+8. [Vulnerability Intelligence Subsystem](#8-vulnerability-intelligence-subsystem)
+9. [Policy & Controlled Remediation Architecture](#9-policy--controlled-remediation-architecture)
+10. [Control API & Supabase Coordination Layer](#10-control-api--supabase-coordination-layer)
+11. [Cross-Platform OS Abstraction Layer](#11-cross-platform-os-abstraction-layer)
+12. [Supply Chain Security & TUF Update Model](#12-supply-chain-security--tuf-update-model)
+13. [Security Trust, Data & Failure Boundaries](#13-security-trust-data--failure-boundaries)
+14. [Architectural Decision Records (ADRs)](#14-architectural-decision-records-adrs)
 
 ---
 
-## 1. Architectural Overview
+## 1. Architectural Principles & Academic Identity
 
-NETRA is designed as a **decoupled, multi-tenant security reconnaissance and posture management platform**. It combines a lightweight, single-binary Go endpoint agent with a stateless, streaming backend and an event-driven PostgreSQL relational core.
+NETRA is an open-source academic research project developed to demonstrate robust defensive security engineering:
+
+```mermaid
+flowchart LR
+    subgraph Principles["Core Architecture Principles"]
+        P1["1. Local-First Determinism<br/>(SQLite State & Hashed Evidence)"]
+        P2["2. Zero Inbound Exposure<br/>(100% Outbound TLS 1.3 Streams)"]
+        P3["3. Strict Capability Whitelisting<br/>(Zero Arbitrary Remote Shells)"]
+        P4["4. Privacy-Preserving Telemetry<br/>(Configuration & Reachability Only)"]
+    end
+```
+
+---
+
+## 2. High-Level System Topology
 
 ```mermaid
 flowchart TD
-    subgraph ClientHost["Managed Endpoint Host (Client PC / Server)"]
-        subgraph Supervisor["Supervisor Service (SYSTEM / root Daemon)"]
-            Watchdog["Watchdog Process Monitor"]
-            KeyBroker["Secure OS Keyring Broker"]
-            Updater["TUF Signed Auto-Updater"]
+    subgraph Host["Monitored Endpoint Host (Windows / Linux / macOS)"]
+        Supervisor["NETRA Supervisor Daemon (OS Service)"]
+        Worker["NETRA Sandboxed Worker Process"]
+        SQLite[("Local SQLite WAL DB<br/>(Encrypted State & FIFO Queue)")]
+        CLI["netra CLI Tool (Operator / CI)"]
+        
+        Supervisor <-->|IPC Socket| Worker
+        Worker <--> SQLite
+        CLI <-->|Local Query / IPC| Worker
+    end
+
+    subgraph Cloud["Central Control Plane (Optional Cloud Coordination)"]
+        WSS["Stream Gateway (WSS TLS 1.3 / Protobuf)"]
+        API["Control API (Go / REST / OpenAPI 3.1)"]
+        Supa[("Supabase / PostgreSQL 16 Core<br/>(Row-Level Security / CTE Graph Engine)")]
+        
+        WSS <--> API
+        API <--> Supa
+    end
+
+    subgraph Integrations["Integration Layer"]
+        Slack["Slack Bot (Approval Gateway)"]
+        Discord["Discord Webhook (Homelab Notifier)"]
+    end
+
+    Worker -->|Outbound WSS / Ed25519 Signed| WSS
+    API --> Slack
+    API --> Discord
+```
+
+---
+
+## 3. Dual Runtime Architecture (Daemon vs. CLI)
+
+NETRA decouples interactive analysis from continuous monitoring using a unified binary:
+
+```mermaid
+flowchart TD
+    subgraph RuntimeModes["Runtime Execution Modes"]
+        direction TB
+        subgraph Mode1["1. Interactive CLI Mode (`netra scan`)"]
+            CLIExec["User executes CLI command"] --> LocalEngine["Run in-process scanner OR query local daemon"]
+            LocalEngine --> StreamSplit["Split Streams: stdout (JSON data) / stderr (ANSI UI)"]
         end
-        subgraph Worker["Worker Agent (`netra` Go Binary)"]
-            WSSClient["WSS Stream Engine (TLS 1.3)"]
-            Sandbox["Task Execution Sandbox (cgroups / Job Objects)"]
-            LocalCache[("Offline SQLite DB (AES-256)")]
-            Scanners["Scanners: Network, Processes, Firewall, Users"]
+        
+        subgraph Mode2["2. Continuous Daemon Mode (`netra service`)"]
+            ServiceExec["OS starts background unit (systemd / Windows SCM)"] --> SupDaemon["Supervisor manages watchdog & sandboxed worker"]
+            SupDaemon --> StreamOut["Maintain persistent WSS stream to Control API"]
         end
-        Supervisor <-- Local IPC (Named Pipe / Domain Socket) --> Worker
     end
-
-    subgraph ControlPlane["NETRA Control Plane (Cloud / On-Prem)"]
-        APIGateway["Stateless REST API Gateway"]
-        WSSGateway["Persistent WSS Stream Gateway"]
-        TaskEngine["Durable Task Orchestrator"]
-        IntelEngine["Security Finding & Deduplication Engine"]
-        AILayer["Advisory AI Explanation Engine"]
-        Postgres[("PostgreSQL 16 Relational Core<br/>Row-Level Security + Recursive Graph CTEs")]
-
-        APIGateway <--> Postgres
-        WSSGateway <--> Postgres
-        TaskEngine <--> Postgres
-        IntelEngine <--> Postgres
-        AILayer -. Advisory Queries .-> Postgres
-    end
-
-    subgraph Management["Management & External Integrations"]
-        CLI["CLI Tool (`netra`)"]
-        WebUI["Web Console (Next.js)"]
-        Slack["Slack Webhook Gateway"]
-    end
-
-    CLI -->|HTTPS REST| APIGateway
-    WebUI -->|HTTPS REST| APIGateway
-    APIGateway -->|Outbound Webhook| Slack
-    Worker -->|Outbound WSS / Ed25519 Signed| WSSGateway
 ```
 
 ---
 
-## 2. Architectural Principles
-
-1. **Evidence Precedes Finding**: No security finding exists without an immutable, cryptographically verifiable evidence artifact.
-2. **Deterministic Core, Advisory AI**: Security rules, finding transitions, and remediation commands are 100% deterministic; AI is strictly restricted to explanations and queries.
-3. **Least Privilege by Default**: Agents run with bounded OS privileges; high-privilege scans are isolated.
-4. **Zero Inbound Ports**: Agent hosts never open inbound listening ports. All communication is outbound persistent TLS 1.3 over WebSocket.
-5. **Asymmetric Cryptographic Identity**: Every device is uniquely identified via an Ed25519 keypair; shared secrets are prohibited across the wire.
-6. **Strict Capability Model**: Remote arbitrary code evaluation (`exec`/`eval`) is structurally forbidden.
-7. **Database-Enforced Multi-Tenancy**: Logical isolation is guaranteed by PostgreSQL Row-Level Security (RLS).
-8. **Fail-Safe & Offline-Tolerant**: Network partitions never crash the agent; data is buffered locally in encrypted SQLite storage.
-9. **Single Static Binaries**: The endpoint agent is compiled in Go with zero external runtime dependencies (`CGO_ENABLED=0`).
-
----
-
-## 3. System Boundaries & Trust Domains
+## 4. Endpoint Agent Internal Subsystems
 
 ```mermaid
 flowchart TD
-    subgraph TD1["TRUST DOMAIN 1: Host Userspace"]
-        Worker["Worker Agent (`netra` Go Binary)<br/>Runs unprivileged / Sandboxed with cgroups"]
-    end
-
-    subgraph TD2["TRUST DOMAIN 2: Host Privileged Supervisor"]
-        Sup["Supervisor Daemon<br/>Runs as SYSTEM / root<br/>Accesses OS DPAPI Keyring"]
-    end
-
-    subgraph TD3["TRUST DOMAIN 3: NETRA Control Plane"]
-        Gateway["API Gateway & WSS Ingress<br/>Stateless Application Tier"]
-        DB[("PostgreSQL 16 Core<br/>Engine-Enforced RLS Isolation")]
-        Gateway <--> DB
-    end
-
-    subgraph TD4["TRUST DOMAIN 4: Management & Clients"]
-        CLI["CLI (`netra`) & Web UI<br/>Authenticated via JWT / OIDC"]
-    end
-
-    Worker <-- "Local IPC Boundary (0600 / DACL)" --> Sup
-    Worker <-- "TLS 1.3 WSS Boundary (Ed25519 Signed)" --> Gateway
-    CLI <-- "HTTPS REST Boundary" --> Gateway
-```
-
----
-
-## 4. Component Architecture
-
-```mermaid
-flowchart TD
-    subgraph AgentSubsystem["Endpoint Agent Subsystem"]
-        S1["Supervisor Daemon"] -->|Monitors| S2["Worker Engine"]
-        S2 --> S3["WSS Comm Loop"]
-        S2 --> S4["Task Dispatcher"]
-        S2 --> S5["Encrypted SQLite Store"]
-        S4 --> S6["Native OS Scanners"]
-    end
-
-    subgraph BackendSubsystem["Control Plane Subsystem"]
-        B1["Stateless REST Gateway"] --> B3["PostgreSQL 16 Core"]
-        B2["WSS Ingress Gateway"] --> B3
-        B4["Task State Machine"] --> B3
-        B5["Finding Deduplicator"] --> B3
-        B6["Topology Synthesizer"] --> B3
+    subgraph AgentSubsystems["NETRA Agent Core Subsystems"]
+        CoreLoop["Event Loop & Scheduler"]
+        
+        CoreLoop --> SockProbe["Socket & Network Observer"]
+        CoreLoop --> ProcProbe["Process & Binary Auditor"]
+        CoreLoop --> FWProbe["OS Firewall & Filter Inspector"]
+        CoreLoop --> UserProbe["User & Privilege Auditor"]
+        CoreLoop --> WebProbe["Browser Exposure Observer"]
+        
+        SockProbe --> Dedupe["Deduplication Engine (SHA-256)"]
+        ProcProbe --> Dedupe
+        FWProbe --> Dedupe
+        UserProbe --> Dedupe
+        WebProbe --> Dedupe
+        
+        Dedupe --> LocalStore[("Local SQLite Queue")]
+        LocalStore --> Transport["WSS Protocol Buffer Client"]
     end
 ```
 
 ---
 
-## 5. Network Topology & Data Flow
+## 5. Local-First Data Architecture (SQLite Core)
 
-The following sequence details the complete communication flow from device connection to task execution and finding ingestion.
+To guarantee resilience during network partitions, the agent stores configuration, evidence, and pending sync batches locally in SQLite:
+
+* **WAL Mode**: `PRAGMA journal_mode = WAL;` enables concurrent reads by the CLI while the worker daemon writes.
+* **Bounded FIFO Queue**: If the host is offline, observations are queued locally up to 500MB, pruning resolved or low-priority items first.
+
+---
+
+## 6. Network Intelligence & Topology Architecture
+
+NETRA correlates local network configuration across all enrolled endpoints without invasive port scanning:
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant Agent as NETRA Agent (Host)
-    participant WSS as WSS Stream Gateway
-    participant Backend as Backend Engine
-    participant DB as PostgreSQL 16 Core
-
-    Agent->>WSS: Outbound WSS Handshake (TLS 1.3)
-    Agent->>WSS: Send Auth Frame (Ed25519 Signature + Device ID)
-    WSS->>DB: Fetch Stored Public Key for Device ID
-    DB-->>WSS: Return Public Key
-    WSS->>WSS: Verify Ed25519 Signature & Timestamp Window
-    WSS->>DB: Mark Device State: ONLINE
-    WSS-->>Agent: Connection Established (Code 1000)
-
-    Note over Backend,DB: Operator schedules task via CLI
-    Backend->>DB: Create Task (Status: PENDING)
-    Backend->>WSS: Push Task Dispatch Frame
-    WSS->>Agent: Deliver Task Frame over WSS (Capability: SCAN_NETWORK)
+flowchart LR
+    AgentA["Host A (192.168.1.10)"] -->|Report ARP Table| ControlAPI["Control API Graph Synthesizer"]
+    AgentB["Host B (192.168.1.20)"] -->|Report ARP Table| ControlAPI
     
-    Note over Agent: Execute Native OS Syscalls (Sandboxed)
-    Agent->>WSS: Send Signed Task Result + Evidence Hash
-    WSS->>Backend: Forward Task Execution Result
-    Backend->>DB: Compute SHA-256 Finding Fingerprint & Ingest (RLS Scoped)
-    Backend->>DB: Update Task State: COMPLETED
-    WSS-->>Agent: Acknowledge Result Ingestion
+    ControlAPI --> PostgresCTE[("PostgreSQL 16 Recursive CTEs<br/>(Reachability & Path Traversal)")]
+    PostgresCTE --> TopologyMap["Synthesized Network Topology Map<br/>• Gateway: 192.168.1.1<br/>• Common Subnet: /24<br/>• Unmanaged Nodes Flagged"]
 ```
 
 ---
 
-## 6. Architectural Decision Records (ADRs)
+## 7. Browser & Web Exposure Observation Subsystem
 
-### ADR-01: Go (Golang) as the Endpoint Agent Language
-* **Decision**: Build the endpoint agent exclusively in Go (Golang 1.22+).
-* **Reason**: Single static binary compilation (`CGO_ENABLED=0`), low idle memory footprint ($<20\text{MB}$ RAM), high concurrency safety (goroutines/channels), fast cold-start ($<50\text{ms}$), and first-class native OS system call packages (`golang.org/x/sys`).
-* **Alternatives Considered**: Python 3.11 (PyInstaller), Rust, C++20.
-* **Why Rejected**: Python was rejected due to heavy runtime packaging ($>60\text{MB}$), slow startup, and high memory usage. Rust was rejected for slower developer velocity during rapid prototyping. C++ was rejected due to manual memory management and vulnerability risks.
-* **Security Implications**: Eliminates buffer overflows and memory corruption vulnerabilities while ensuring high operational stability.
-
-### ADR-02: Outbound WSS (WebSocket over TLS 1.3) with REST Polling Fallback
-* **Decision**: Adopt Outbound Persistent WSS as the primary transport protocol, with HTTPS REST Long Polling as a fallback.
-* **Reason**: Traverses corporate NATs and firewalls without requiring inbound listening ports; supports instant bidirectional dispatch with minimal overhead.
-* **Alternatives Considered**: Inbound REST agent listener, gRPC, MQTT.
-* **Why Rejected**: Inbound REST creates an unacceptable security risk (open host ports). MQTT adds unnecessary broker infrastructure (Mosquitto/RabbitMQ).
-* **Security Implications**: All streams are encrypted with TLS 1.3 and authenticated per-frame with Ed25519 signatures.
-
-### ADR-03: PostgreSQL 16 with Row-Level Security (RLS) and Recursive CTE Topology Graphing
-* **Decision**: Standardize on PostgreSQL 16 as the unified datastore for relational entities, multi-tenancy (RLS), and network topology graphing (Recursive CTEs).
-* **Reason**: Unifies data operations in a single ACID-compliant database; eliminates the operational overhead and dual-write sync bugs of a separate graph database (e.g., Neo4j).
-* **Alternatives Considered**: MongoDB, Neo4j, Apache AGE, MySQL.
-* **Why Rejected**: Neo4j introduces severe operational complexity and lacks unified ACID transaction support with relational tables. MongoDB lacks strict relational integrity.
-* **Security Implications**: Database-enforced RLS ensures zero possibility of cross-tenant data leaks even in the event of application-layer authorization bugs.
-
-### ADR-04: Asymmetric Device Identity via Ed25519 Cryptography
-* **Decision**: Implement Ed25519 public-key authentication for all agent communication.
-* **Reason**: Eliminates shared-secret leakage risks; private keys remain permanently in client OS-protected keystores (DPAPI/SecretService/Keychain).
-* **Alternatives Considered**: Shared-secret HMAC-SHA256, X.509 mTLS.
-* **Why Rejected**: Shared secrets present server-side database exposure risks. X.509 mTLS introduces heavy PKI/CA certificate management and expiration failure modes.
-* **Security Implications**: High cryptographic strength (128-bit security level) with compact 64-byte signatures and constant-time verification.
-
-### ADR-05: Strict Pre-Compiled Capability Whitelist vs. Remote Shell
-* **Decision**: Structurally prohibit arbitrary remote command execution (`exec`/`eval`); restrict tasks strictly to pre-compiled enums (`SCAN_NETWORK`, `SCAN_FIREWALL`, etc.).
-* **Reason**: Eliminates the risk of the security agent being hijacked as a remote execution backdoor.
-* **Alternatives Considered**: Arbitrary remote shell over WSS / SSH wrapper.
-* **Why Rejected**: High risk of catastrophic organization-wide compromise if control plane credentials are breached.
+Correlates OS network sockets with browser binaries to identify unauthorized external exposures:
+* **Passive Correlation**: Reads OS socket tables (`GetExtendedTcpTable` / Netlink) and matches PID to known browser binaries.
+* **Domain Resolution**: Uses OS DNS cache and TLS SNI headers observed at TCP connect time.
+* **Academic Privacy Boundary**: Never inspects web page DOM, cookies, HTTP bodies, or user keystrokes.
 
 ---
 
-## 7. Scalability & Evolution Strategy
+## 8. Vulnerability Intelligence Subsystem
+
+Correlates installed software inventories with cached CVE catalogs:
+* **Local Parsing**: Queries OS package managers and registry keys.
+* **CPE Normalization**: Maps software to CPE 2.3 identifiers.
+* **Offline Matching**: Matches versions against cached NVD/OSV feeds stored in local SQLite or PostgreSQL.
+
+---
+
+## 9. Policy & Controlled Remediation Architecture
 
 ```mermaid
 flowchart TD
-    subgraph Scaling["Scalability Progression Model"]
-        L1["Level 1 (1–5 Nodes)<br/>Single VM (2 vCPU, 4GB RAM) + PostgreSQL 16"] --> L2["Level 2 (10–100 Nodes)<br/>Standard VM + Managed PostgreSQL"]
-        L2 --> L3["Level 3 (100–1,000 Nodes)<br/>Autoscaled API Gateway + Redis 7 WSS Session Hub"]
-        L3 --> L4["Level 4 (1,000–10,000+ Nodes)<br/>Kubernetes Cluster + TimescaleDB Telemetry Tier"]
-    end
+    Finding["Security Finding (e.g., Port 445 Open on 0.0.0.0)"] --> PolicyEngine["Deterministic Policy Engine"]
+    PolicyEngine --> HumanGate{"Remediation Approved?<br/>(CLI / Slack Interactive)"}
+    
+    HumanGate -- Approved --> PreCheck["1. Pre-Flight Safety Verification"]
+    PreCheck -- Pass --> ApplyFix["2. Apply Native OS Change (e.g. Add Firewall Rule)"]
+    ApplyFix --> PostCheck["3. Post-Remediation Verification Probe"]
+    
+    PostCheck -- Verified --> Resolved["4. Mark Finding RESOLVED"]
+    PostCheck -- Failed --> Rollback["5. Rollback to Original State & Alert"]
 ```
 
 ---
 
-## 8. Failure Domains & Fault Isolation
+## 10. Control API & Supabase Coordination Layer
+
+* **Supabase / PostgreSQL Core**: Serves as the central data store enforcing multi-tenant isolation via Row-Level Security (`SET LOCAL app.current_tenant_id`).
+* **Architectural Decoupling**: Endpoints never connect directly to the database; all traffic routes through the authenticated Control API / WSS Gateway.
+
+---
+
+## 11. Cross-Platform OS Abstraction Layer
 
 ```mermaid
 flowchart TD
-    subgraph FaultIsolation["Fault Isolation Domains"]
-        F1["Scanner Panic<br/>Isolated in goroutine; supervisor auto-restarts worker"]
-        F2["Network Partition<br/>Agent switches to local encrypted SQLite; flushes on reconnect"]
-        F3["Control Plane Restart<br/>Stateless gateways reload; persistent state safe in PostgreSQL"]
-    end
+    Core["NETRA Common Core (Go)"]
+    
+    Core --> WinAdapter["Windows Adapter<br/>• `Iphlpapi.dll` (Sockets & ARP)<br/>• `INetFwPolicy2` (Firewall COM)<br/>• DPAPI Key Storage<br/>• Job Objects Limits"]
+    Core --> LinuxAdapter["Linux Adapter<br/>• Netlink `rtnetlink` (Sockets)<br/>• `nftables` / `iptables`<br/>• SecretService Key Storage<br/>• cgroups v2 Limits"]
+    Core --> MacAdapter["macOS Adapter<br/>• `sysctl` / `getifaddrs`<br/>• `pfctl` Packet Filter<br/>• Apple Keychain Storage<br/>• POSIX Resource Limits"]
 ```
+
+---
+
+## 12. Supply Chain Security & TUF Update Model
+
+* **Hermetic Compilation**: `CGO_ENABLED=0` static Go binaries.
+* **Artifact Provenance**: Syft generates CycloneDX/SPDX SBOMs; Cosign signs release binaries via GitHub OIDC.
+* **Atomic Binary Updates**: Downloaded updates are verified against TUF signed manifests and swapped atomically on disk.
+
+---
+
+## 13. Security Trust, Data & Failure Boundaries
+
+```mermaid
+flowchart TD
+    subgraph Unauthenticated["Untrusted Zone"]
+        UnenrolledHost["Unenrolled Machine"]
+    end
+
+    subgraph HostDACL["Host Trust Boundary (DACL 0600)"]
+        Supervisor["Supervisor (Elevated)"]
+        Worker["Worker (Sandboxed)"]
+    end
+
+    subgraph CloudBoundary["Control Plane Trust Boundary"]
+        WSS["WSS Stream Ingress"]
+        API["Control API (JWT Validated)"]
+        DB[("PostgreSQL 16 (RLS Isolated)")]
+    end
+
+    UnenrolledHost -->|Single-Use Enrollment Token| WSS
+    Worker -->|Ed25519 Signed Frames| WSS
+    WSS --> API
+    API --> DB
+```
+
+---
+
+## 14. Architectural Decision Records (ADRs)
+
+| ADR ID | Decision | Chosen Approach | Rejected Alternative | Core Rationale |
+| :--- | :--- | :--- | :--- | :--- |
+| **ADR-001** | Agent Implementation Language | **Go (Golang 1.22+)** | Python / PyInstaller | Single static binary (<20MB), low memory (<25MB RAM), sub-millisecond cold start, native Win32/Netlink syscall bindings. |
+| **ADR-002** | Device Transport Protocol | **Outbound WebSocket over TLS 1.3 (Protobuf)** | Inbound REST / gRPC | Traverses NAT gateways with zero open client firewall ports. Protobuf ensures minimal bandwidth. |
+| **ADR-003** | Local State Management | **Local SQLite (WAL Mode)** | JSON files / Raw memory | ACID safety, WAL non-blocking concurrent reads, resilient offline buffering up to 500MB. |
+| **ADR-004** | Topology & Reachability Graph | **PostgreSQL 16 Recursive CTEs** | Dedicated Neo4j Cluster | Sub-10ms graph path queries for <50k nodes within existing ACID transaction boundary; zero dual-write operational overhead. |
+| **ADR-005** | Third-Party Integrations | **Slack (Async Gateway) / Discord (Outbound Webhook)** | Discord as Primary Control Plane | Discord lacks enterprise RBAC and SSO. Positioned strictly as optional notification plugins. |
