@@ -136,7 +136,9 @@ mod tests {
     #[test]
     fn test_invalid_prefix_fails() {
         let err = DeviceId::parse_str("ten_01h8a1b2c3d4").unwrap_err();
-        assert!(err.to_string().contains("must start with prefix 'dev_'"));
+        assert!(err
+            .to_string()
+            .contains("must start with prefix 'dev_'"));
     }
 
     #[test]
