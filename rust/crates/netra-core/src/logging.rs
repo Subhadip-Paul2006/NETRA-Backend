@@ -29,8 +29,7 @@ pub fn init_logging(config: &LogConfig) -> Result<()> {
                 .try_init()
             {
                 init_result = Err(NetraError::internal(format!(
-                    "Failed to initialize JSON tracing subscriber: {}",
-                    e
+                    "Failed to initialize JSON tracing subscriber: {e}"
                 )));
             }
         } else {
@@ -45,8 +44,7 @@ pub fn init_logging(config: &LogConfig) -> Result<()> {
                 .try_init()
             {
                 init_result = Err(NetraError::internal(format!(
-                    "Failed to initialize human tracing subscriber: {}",
-                    e
+                    "Failed to initialize human tracing subscriber: {e}"
                 )));
             }
         }

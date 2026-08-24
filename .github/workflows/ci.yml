@@ -53,9 +53,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-deny
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-deny@0.16.4
+        uses: taiki-e/install-action@cargo-deny
       - name: Check Licenses & Advisories
         working-directory: rust
-        run: cargo-deny --config ../tools/deny.toml check
+        run: cargo-deny check --config ../tools/deny.toml

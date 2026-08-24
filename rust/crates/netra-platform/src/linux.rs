@@ -5,17 +5,12 @@ use crate::info::detect_platform_info;
 use crate::traits::{PlatformAdapter, PlatformInfo};
 
 /// Linux-specific native platform adapter foundation.
+#[derive(Default)]
 pub struct LinuxAdapter;
 
 impl LinuxAdapter {
     pub fn new() -> Self {
         Self
-    }
-}
-
-impl Default for LinuxAdapter {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

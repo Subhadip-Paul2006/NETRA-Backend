@@ -5,19 +5,14 @@ use serde::{Deserialize, Serialize};
 use crate::error::{NetraError, Result};
 
 /// Operational runtime modes for NETRA.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum RuntimeMode {
     /// On-demand command line invocation.
+    #[default]
     Cli,
     /// Persistent background service managed by OS supervisor.
     Service,
-}
-
-impl Default for RuntimeMode {
-    fn default() -> Self {
-        Self::Cli
-    }
 }
 
 /// Structured logging configuration.
@@ -102,9 +97,9 @@ impl NetraConfig {
     /// Loads configuration from a TOML file on disk.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = std::fs::read_to_string(path.as_ref())
-            .map_err(|e| NetraError::config(format!("Failed to read config file: {}", e)))?;
+            .map_err(|e| NetraError::config(format!("Failed to read config file: {e}")))?;
         let config: Self = toml::from_str(&content)
-            .map_err(|e| NetraError::config(format!("Invalid config TOML: {}", e)))?;
+            .map_err(|e| NetraError::config(format!("Invalid config TOML: {e}")))?;
         config.validate()?;
         Ok(config)
     }

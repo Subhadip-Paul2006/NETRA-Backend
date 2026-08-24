@@ -5,17 +5,12 @@ use crate::info::detect_platform_info;
 use crate::traits::{PlatformAdapter, PlatformInfo};
 
 /// macOS-specific native platform adapter foundation.
+#[derive(Default)]
 pub struct MacOSAdapter;
 
 impl MacOSAdapter {
     pub fn new() -> Self {
         Self
-    }
-}
-
-impl Default for MacOSAdapter {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

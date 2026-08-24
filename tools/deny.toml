@@ -18,7 +18,9 @@ allow = [
     "CC0-1.0",
     "Zlib",
     "OpenSSL",
-    "MPL-2.0"
+    "MPL-2.0",
+    "0BSD",
+    "Unlicense"
 ]
 confidence-threshold = 0.8
 

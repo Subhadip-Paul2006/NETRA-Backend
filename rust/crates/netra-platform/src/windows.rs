@@ -5,17 +5,12 @@ use crate::info::detect_platform_info;
 use crate::traits::{PlatformAdapter, PlatformInfo};
 
 /// Windows-specific native platform adapter foundation.
+#[derive(Default)]
 pub struct WindowsAdapter;
 
 impl WindowsAdapter {
     pub fn new() -> Self {
         Self
-    }
-}
-
-impl Default for WindowsAdapter {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
