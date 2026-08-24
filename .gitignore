@@ -17,6 +17,9 @@ coverage.txt
 *.db-wal
 *.db-shm
 
+# Local agent memory and session logs
+Memory.md
+
 # IDE and OS
 .DS_Store
 Thumbs.db
