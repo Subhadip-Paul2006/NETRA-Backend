@@ -168,21 +168,21 @@ flowchart TD
     PHASES --> TRD & WORK
 ```
 
-* **[PRD.md](./PRD.md)**: Product requirements, user personas, goals, non-goals, and success metrics.
-* **[TRD.md](./TRD.md)**: Technical requirements, protocols, resource budgets, and performance specifications.
-* **[ARCHITECTURE.md](./ARCHITECTURE.md)**: System topology, component boundaries, and Architectural Decision Records (ADRs).
-* **[SYSTEM_DESIGN.md](./SYSTEM_DESIGN.md)**: Runtime workflows, sequence diagrams, state machines, and concurrency models.
-* **[SECURITY_CHECK.md](./SECURITY_CHECK.md)**: Threat modeling (STRIDE), Ed25519 cryptography, PostgreSQL RLS, and TUF auto-updates.
-* **[OS_VERSATILE.md](./OS_VERSATILE.md)**: Windows, Linux, and macOS native syscall adapters and capability matrices.
-* **[API.md](./API.md)**: REST endpoints, WebSocket streaming frames, authentication schemas, and error codes.
-* **[UI_UX.md](./UI_UX.md)**: CLI interaction standards, output stream separation, ANSI tables, and machine-readable JSON modes.
-* **[USAGE.md](./USAGE.md)**: Practical end-user operations, installation, enrollment, scanning, and troubleshooting.
-* **[SLACK.md](./SLACK.md)**: Asynchronous notifications and human-in-the-loop remediation approval gateway.
-* **[DISCORD.md](./DISCORD.md)**: Optional outbound webhook notifier for homelabs and community users.
-* **[CI_CD.md](./CI_CD.md)**: Hermetic Go builds, SBOM generation (Syft), Cosign cryptographic signing, and release gates.
-* **[WORKFLOW.md](./WORKFLOW.md)**: Engineering branching models, conventional commits, and Definition of Done.
-* **[PHASES.md](./PHASES.md)**: Master implementation roadmap across verified engineering milestones.
-* **[RESEARCH.md](./RESEARCH.md)**: Industry discovery, competitive analysis, legacy post-mortem, and diagram inventory.
+* **[PRD.md](./docs/PRD.md)**: Product requirements, user personas, goals, non-goals, and success metrics.
+* **[TRD.md](./docs/TRD.md)**: Technical requirements, protocols, resource budgets, and performance specifications.
+* **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)**: System topology, component boundaries, and Architectural Decision Records (ADRs).
+* **[SYSTEM_DESIGN.md](./docs/SYSTEM_DESIGN.md)**: Runtime workflows, sequence diagrams, state machines, and concurrency models.
+* **[SECURITY_CHECK.md](./docs/SECURITY_CHECK.md)**: Threat modeling (STRIDE), Ed25519 cryptography, PostgreSQL RLS, and TUF auto-updates.
+* **[OS_VERSATILE.md](./docs/OS_VERSATILE.md)**: Windows, Linux, and macOS native syscall adapters and capability matrices.
+* **[API.md](./docs/API.md)**: REST endpoints, WebSocket streaming frames, authentication schemas, and error codes.
+* **[UI_UX.md](./docs/UI_UX.md)**: CLI interaction standards, output stream separation, ANSI tables, and machine-readable JSON modes.
+* **[USAGE.md](./docs/USAGE.md)**: Practical end-user operations, installation, enrollment, scanning, and troubleshooting.
+* **[SLACK.md](./docs/SLACK.md)**: Asynchronous notifications and human-in-the-loop remediation approval gateway.
+* **[DISCORD.md](./docs/DISCORD.md)**: Optional outbound webhook notifier for homelabs and community users.
+* **[CI_CD.md](./docs/CI_CD.md)**: Hermetic Go builds, SBOM generation (Syft), Cosign cryptographic signing, and release gates.
+* **[WORKFLOW.md](./docs/WORKFLOW.md)**: Engineering branching models, conventional commits, and Definition of Done.
+* **[PHASES.md](./docs/PHASES.md)**: Master implementation roadmap across verified engineering milestones.
+* **[RESEARCH.md](./docs/RESEARCH.md)**: Industry discovery, competitive analysis, legacy post-mortem, and diagram inventory.
 
 ---
 
@@ -198,7 +198,7 @@ flowchart TD
 
 ## 8. Project Status & Roadmap
 
-NETRA is currently in the **Specification & Architectural Verification Phase** (Phase 0). Application code implementation will follow the strict milestone roadmap defined in [PHASES.md](./PHASES.md).
+NETRA is currently in the **Specification & Architectural Verification Phase** (Phase 0). Application code implementation will follow the strict milestone roadmap defined in [PHASES.md](./docs/PHASES.md).
 
 * **Phase 0: Research & Architecture Specification** $\longrightarrow$ `[COMPLETED]`
 * **Phase 1: Foundation & Core Go Agent MVP** $\longrightarrow$ `[PROPOSED / NEXT]`
