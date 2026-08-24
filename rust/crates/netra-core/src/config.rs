@@ -97,9 +97,9 @@ impl NetraConfig {
     /// Loads configuration from a TOML file on disk.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = std::fs::read_to_string(path.as_ref())
-            .map_err(|e| NetraError::config(format!("Failed to read config file: {e}")))?;
+            .map_err(|e| NetraError::config(format!("Failed to read config file: {}", e)))?;
         let config: Self = toml::from_str(&content)
-            .map_err(|e| NetraError::config(format!("Invalid config TOML: {e}")))?;
+            .map_err(|e| NetraError::config(format!("Invalid config TOML: {}", e)))?;
         config.validate()?;
         Ok(config)
     }

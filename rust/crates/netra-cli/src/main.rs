@@ -186,7 +186,8 @@ fn execute_command(
                 args::ServiceSubcommand::Status => "status",
             };
             let summary = format!(
-                "✔ Service command '{action_name}' CLI interface verified (Phase 01 Foundation)."
+                "✔ Service command '{}' CLI interface verified (Phase 01 Foundation).",
+                action_name
             );
             presenter.emit_success(
                 "service",

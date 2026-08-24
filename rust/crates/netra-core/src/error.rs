@@ -135,7 +135,7 @@ impl fmt::Display for NetraError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}] {}", self.kind.code(), self.message)?;
         if let Some(ctx) = &self.safe_context {
-            write!(f, " (Context: {ctx})")?;
+            write!(f, " (Context: {})", ctx)?;
         }
         Ok(())
     }
@@ -149,13 +149,13 @@ impl From<std::io::Error> for NetraError {
 
 impl From<serde_json::Error> for NetraError {
     fn from(err: serde_json::Error) -> Self {
-        Self::new(ErrorKind::Config, format!("JSON serialization error: {err}"))
+        Self::new(ErrorKind::Config, format!("JSON serialization error: {}", err))
     }
 }
 
 impl From<toml::de::Error> for NetraError {
     fn from(err: toml::de::Error) -> Self {
-        Self::new(ErrorKind::Config, format!("TOML parse error: {err}"))
+        Self::new(ErrorKind::Config, format!("TOML parse error: {}", err))
     }
 }
 
