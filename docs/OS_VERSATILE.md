@@ -31,9 +31,9 @@ NETRA avoids brittle CLI subprocess text-scraping (such as parsing `netsh` or `u
 flowchart TD
     Core["NETRA Common Engine (Go Core)"]
 
-    Core --> WinAdapter["Windows Adapter<br/>• `Iphlpapi.dll` (Win32 Sockets)<br/>• `INetFwPolicy2` (Firewall COM)<br/>• DPAPI Protected Keyring<br/>• Job Objects Limits"]
-    Core --> LinuxAdapter["Linux Adapter<br/>• Netlink `rtnetlink` (Sockets)<br/>• `nftables` / `iptables`<br/>• SecretService / Kernel Keyring<br/>• cgroups v2 Limits"]
-    Core --> MacAdapter["macOS Adapter<br/>• `sysctl` / `getifaddrs`<br/>• `pfctl` Packet Filter<br/>• Apple Keychain Services<br/>• POSIX Resource Limits"]
+    Core --> WinAdapter["Windows Adapter<br/>• Iphlpapi.dll (Win32 Sockets)<br/>• INetFwPolicy2 (Firewall COM)<br/>• DPAPI Protected Keyring<br/>• Job Objects Limits"]
+    Core --> LinuxAdapter["Linux Adapter<br/>• Netlink rtnetlink (Sockets)<br/>• nftables / iptables<br/>• SecretService / Kernel Keyring<br/>• cgroups v2 Limits"]
+    Core --> MacAdapter["macOS Adapter<br/>• sysctl / getifaddrs<br/>• pfctl Packet Filter<br/>• Apple Keychain Services<br/>• POSIX Resource Limits"]
 ```
 
 ---

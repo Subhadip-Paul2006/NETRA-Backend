@@ -29,10 +29,10 @@
 
 ```mermaid
 flowchart TD
-    Install["1. Install Binary<br/>(`curl -sSL https://get.netra.io | sudo sh`)"] --> Enroll["2. Enroll Device<br/>(`netra enroll --token <token>`)"]
-    Enroll --> Verify["3. Check Status<br/>(`netra status`)"]
-    Verify --> Scan["4. Run Posture Scan<br/>(`netra scan --all`)"]
-    Scan --> Findings["5. Inspect Findings<br/>(`netra findings list`)"]
+    Install["1. Install Binary<br/>(curl -sSL https://get.netra.io | sudo sh)"] --> Enroll["2. Enroll Device<br/>(netra enroll --token [token])"]
+    Enroll --> Verify["3. Check Status<br/>(netra status)"]
+    Verify --> Scan["4. Run Posture Scan<br/>(netra scan --all)"]
+    Scan --> Findings["5. Inspect Findings<br/>(netra findings list)"]
     Findings --> Remediate["6. Apply Remediation<br/>(Safe, approved fix)"]
     Remediate --> Validate["7. Re-scan & Validate<br/>(Post-validation loop)"]
 ```
@@ -180,11 +180,11 @@ jobs:
 
 ```mermaid
 flowchart TD
-    Issue["Agent Status: OFFLINE or Scan Error"] --> D1["Run `sudo netra diagnostics`"]
+    Issue["Agent Status: OFFLINE or Scan Error"] --> D1["Run sudo netra diagnostics"]
     D1 --> D2{"Check Outbound WSS Port 443"}
     D2 -- Failed --> D3["Verify DNS resolution & egress firewall rules"]
     D2 -- Success --> D4{"Check OS Keyring Access"}
     D4 -- Failed --> D5["Verify DPAPI / SecretService permissions"]
     D4 -- Success --> D6{"Check Local SQLite Database"}
-    D6 --> D7["Review `/var/log/netra/agent.log`"]
+    D6 --> D7["Review /var/log/netra/agent.log"]
 ```

@@ -104,8 +104,8 @@ sequenceDiagram
     Operator->>SlackAPI: Clicks [Approve Remediation] Button
     SlackAPI->>Gateway: POST /v1/integrations/slack/interactivity (Signed HMAC)
     Gateway->>Gateway: Verify Slack HMAC Signature & Timestamp Window
-    Gateway->>DB: Verify Operator Slack ID has `ROLE_OPERATOR` / `ROLE_ADMIN`
-    Gateway->>DB: Insert `AUDIT_EVENT` Record (Approved by Slack User)
+    Gateway->>DB: Verify Operator Slack ID has ROLE_OPERATOR / ROLE_ADMIN
+    Gateway->>DB: Insert AUDIT_EVENT Record (Approved by Slack User)
     Gateway->>TaskOrch: Enqueue Remediation Task
     Gateway-->>SlackAPI: Return Ephemeral Confirmation Message
     SlackAPI-->>Operator: Render "Remediation Scheduled by @Alex"
@@ -118,14 +118,14 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     subgraph OAuthScopes["Least-Privilege Slack Scopes"]
-        S1["`chat:write`<br/>Post alert notifications to channels"]
-        S2["`commands`<br/>Support `/netra status` slash queries"]
+        S1["chat:write<br/>Post alert notifications to channels"]
+        S2["commands<br/>Support /netra status slash queries"]
     end
 
     subgraph ProhibitedScopes["STRICTLY PROHIBITED SCOPES"]
-        P1["✕ `channels:history` (Reading channel messages)"]
-        P2["✕ `files:write` (Uploading arbitrary files)"]
-        P3["✕ `admin` (Workspace administrative control)"]
+        P1["✕ channels:history (Reading channel messages)"]
+        P2["✕ files:write (Uploading arbitrary files)"]
+        P3["✕ admin (Workspace administrative control)"]
     end
 ```
 

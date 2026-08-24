@@ -52,7 +52,7 @@ flowchart TD
     
     Binary --> CheckMode{"Invocation Context"}
     
-    CheckMode -- "CLI Command (e.g., `netra scan`)" --> CLIMode["Interactive / Scripting CLI Mode<br/>• Short-lived userspace process<br/>• Direct OS probing or Local Daemon IPC<br/>• stdout/stderr stream separation<br/>• Pure JSON / ANSI table outputs"]
+    CheckMode -- "CLI Command (e.g., netra scan)" --> CLIMode["Interactive / Scripting CLI Mode<br/>• Short-lived userspace process<br/>• Direct OS probing or Local Daemon IPC<br/>• stdout/stderr stream separation<br/>• Pure JSON / ANSI table outputs"]
     
     CheckMode -- "Service Daemon (systemd / Windows SCM)" --> DaemonMode["Two-Tier Background Service Mode"]
     
@@ -80,8 +80,8 @@ sequenceDiagram
     participant DB as Local SQLite DB
     participant Worker as NETRA Worker
 
-    OS->>Sup: Start Service (`netra service start`)
-    Sup->>DB: Open/Migrate `netra_local.db` (Enable WAL Mode)
+    OS->>Sup: Start Service (netra service start)
+    Sup->>DB: Open/Migrate netra_local.db (Enable WAL Mode)
     Sup->>Keyring: Retrieve Ed25519 Device Private Key
     alt Key Missing (First Run)
         Sup->>Sup: Generate Ed25519 Keypair (RFC 8032)
@@ -106,12 +106,12 @@ Every enrolled host possesses a unique **Ed25519 (RFC 8032)** asymmetric cryptog
 * **Public Key Representation**: Exported as a 64-character hexadecimal string (`32 bytes`) and transmitted during enrollment to the Control API.
 * **Canonical Request Signing**: Every outgoing frame or HTTP request includes cryptographic headers:
   $$\text{Headers: } \text{X-NETRA-Device-ID}, \text{X-NETRA-Timestamp}, \text{X-NETRA-Nonce}, \text{X-NETRA-Signature}$$
-  $$\text{StringToSign} = \text{METHOD} \parallel \text{"\textbackslash n"} \parallel \text{PATH} \parallel \text{"\textbackslash n"} \parallel \text{TIMESTAMP} \parallel \text{"\textbackslash n"} \parallel \text{NONCE} \parallel \text{"\textbackslash n"} \parallel \text{SHA256}(\text{BODY})$$
+  $$\text{StringToSign} = \text{METHOD} \parallel \text{"\n"} \parallel \text{PATH} \parallel \text{"\n"} \parallel \text{TIMESTAMP} \parallel \text{"\n"} \parallel \text{NONCE} \parallel \text{"\n"} \parallel \text{SHA256}(\text{BODY})$$
 
 ```mermaid
 stateDiagram-v2
     [*] --> Unenrolled: Binary Installed
-    Unenrolled --> GeneratingKeys: `netra enroll --token <token>`
+    Unenrolled --> GeneratingKeys: netra enroll --token [token]
     GeneratingKeys --> StoringKeyring: Ed25519 Keypair Generated
     StoringKeyring --> AwaitingAttestation: Key Saved to DPAPI / SecretService
     AwaitingAttestation --> Enrolled: Control API Validates Token & Stores Public Key
@@ -228,7 +228,7 @@ NETRA constructs a deterministic Layer-2/Layer-3 local reachability graph throug
 ```mermaid
 flowchart TD
     subgraph Discovery["3-Tier Topology Discovery Engine"]
-        T1["Tier 1: Passive Extraction (Zero Traffic)<br/>• Kernel Routing Tables (Default Gateways & Interface Metrics)<br/>• OS Neighbor & ARP Cache (`GetIpNetTable2` / `ip neigh`)"]
+        T1["Tier 1: Passive Extraction (Zero Traffic)<br/>• Kernel Routing Tables (Default Gateways & Interface Metrics)<br/>• OS Neighbor & ARP Cache (GetIpNetTable2 / ip neigh)"]
         T2["Tier 2: Directed Unicast Inferences<br/>• Gateway ICMP / UDP Traceroute probes<br/>• Reverse DNS (PTR) lookups for local LAN nodes"]
         T3["Tier 3: Policy-Controlled Micro-Probing<br/>• Targeted TCP Connect probes to standard ports (22, 80, 445, 3389)"]
     end
@@ -269,10 +269,10 @@ sequenceDiagram
     Browser->>Browser: Establishes Outbound Connection to Remote Endpoint
     SocketProbe->>SocketProbe: Read Kernel TCP Table (PID 4082 -> 198.51.100.24:443)
     SocketProbe->>DNSEngine: Match Remote IP against Local DNS Cache
-    DNSEngine-->>SocketProbe: Resolved Domain: `suspicious-c2-domain.test`
-    SocketProbe->>Corr: Aggregate (PID, ProcessName: `chrome.exe`, Domain, Port: 443)
+    DNSEngine-->>SocketProbe: Resolved Domain: suspicious-c2-domain.test
+    SocketProbe->>Corr: Aggregate (PID, ProcessName: chrome.exe, Domain, Port: 443)
     Corr->>Corr: Check against Known Insecure / Malicious Exposure Rules
-    Corr->>DB: Record `OBSERVATION_WEB_EXPOSURE` & Generate Finding if flagged
+    Corr->>DB: Record OBSERVATION_WEB_EXPOSURE & Generate Finding if flagged
 ```
 
 ---
@@ -287,7 +287,7 @@ NETRA correlates local software inventories against standardized vulnerability f
 
 ```mermaid
 flowchart LR
-    HostApp["Installed Application<br/>(e.g., `OpenSSL 1.1.1k`)"] --> CPE["CPE 2.3 Normalizer"]
+    HostApp["Installed Application<br/>(e.g., OpenSSL 1.1.1k)"] --> CPE["CPE 2.3 Normalizer"]
     CPE --> Matcher["Deterministic Match Engine"]
     CVECache[("Local SQLite CVE Cache<br/>(OSV / NVD Weekly Delta)")] --> Matcher
     Matcher --> Result{"Known CVE Match?"}
@@ -401,12 +401,12 @@ sequenceDiagram
     participant Gateway as Control API Gateway
     participant Supabase as Supabase / PostgreSQL Core
 
-    CLI->>Agent: `netra enroll --token <enroll_token>`
+    CLI->>Agent: netra enroll --token [enroll_token]
     Agent->>Keyring: Generate & Store Ed25519 Private Key
     Agent->>Gateway: POST /v1/agent/enroll (Token, Hex PublicKey, OS Info)
     Gateway->>Supabase: Validate Enrollment Token (Check Expiry & Uses)
-    Supabase->>Supabase: Create `devices` Record & Assign `tenant_id`
-    Gateway-->>Agent: Return 201 Created (Device ID: `dev_01h8...`)
+    Supabase->>Supabase: Create devices Record & Assign tenant_id
+    Gateway-->>Agent: Return 201 Created (Device ID: dev_01h8...)
     Agent->>Agent: Save Device ID to Local SQLite
     Agent->>Gateway: Establish Persistent WSS Stream
     Gateway-->>Agent: Stream Established (Status: ONLINE)
@@ -426,15 +426,15 @@ sequenceDiagram
 
     Scanner->>Engine: Raw Observation (Port 445 Listening, No Firewall)
     Engine->>Engine: Compute SHA-256 Fingerprint
-    Engine->>SQLite: Query `LOCAL_FINDINGS` by Fingerprint
+    Engine->>SQLite: Query LOCAL_FINDINGS by Fingerprint
     alt Finding Exists in DB (Duplicate)
-        Engine->>SQLite: Update `last_seen = NOW()`, Increment Occurrence Count
+        Engine->>SQLite: Update last_seen = NOW(), Increment Occurrence Count
     else New Finding
-        Engine->>SQLite: Insert `LOCAL_FINDINGS` (Status: OPEN, Severity: HIGH)
-        Engine->>SQLite: Enqueue to `OBSERVATION_QUEUE`
-        Engine->>Gateway: WSS Frame: `INGEST_FINDING` (Payload + Ed25519 Sig)
+        Engine->>SQLite: Insert LOCAL_FINDINGS (Status: OPEN, Severity: HIGH)
+        Engine->>SQLite: Enqueue to OBSERVATION_QUEUE
+        Engine->>Gateway: WSS Frame: INGEST_FINDING (Payload + Ed25519 Sig)
         Gateway->>Postgres: Execute Upsert via RLS Session
-        Gateway-->>Engine: Frame: `ACK_FINDING` (Ingested)
-        Engine->>SQLite: Mark Queue Status `SYNCED`
+        Gateway-->>Engine: Frame: ACK_FINDING (Ingested)
+        Engine->>SQLite: Mark Queue Status SYNCED
     end
 ```

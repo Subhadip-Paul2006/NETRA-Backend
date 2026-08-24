@@ -82,16 +82,16 @@ CREATE POLICY tenant_isolation_policy ON findings
 flowchart LR
     subgraph Approved["APPROVED PRE-COMPILED CAPABILITIES"]
         direction TB
-        C1["`SCAN_NETWORK` (Socket enumeration)"]
-        C2["`SCAN_PROCESSES` (Process audit)"]
-        C3["`SCAN_FIREWALL` (Firewall profile check)"]
-        C4["`SCAN_USERS` (User account audit)"]
+        C1["SCAN_NETWORK (Socket enumeration)"]
+        C2["SCAN_PROCESSES (Process audit)"]
+        C3["SCAN_FIREWALL (Firewall profile check)"]
+        C4["SCAN_USERS (User account audit)"]
     end
 
     subgraph Prohibited["STRUCTURALLY PROHIBITED EXECUTION"]
         direction TB
-        P1["✕ `exec('sh -c ...')` (Remote shell strings)"]
-        P2["✕ `eval()` / Dynamic script execution"]
+        P1["✕ exec('sh -c ...') (Remote shell strings)"]
+        P2["✕ eval() / Dynamic script execution"]
         P3["✕ Downloading unverified binary payloads"]
     end
 ```
@@ -116,16 +116,16 @@ sequenceDiagram
     participant Agent as NETRA Agent
     participant OS as Native OS Firewall
 
-    Op->>API: Approve Remediation (Finding: `fnd_01h8...`)
-    API->>Agent: Dispatch `REMEDIATION_APPLY` Frame
+    Op->>API: Approve Remediation (Finding: fnd_01h8...)
+    API->>Agent: Dispatch REMEDIATION_APPLY Frame
     Agent->>Agent: Run Pre-Flight Safety Checks (Not System Critical)
     Agent->>OS: Apply Native Rule (e.g. Block Inbound Port 445)
     Agent->>Agent: Run Post-Validation Probe (Check Port State)
     alt Verification Succeeded
-        Agent-->>API: Status: `VERIFIED_RESOLVED`
+        Agent-->>API: Status: VERIFIED_RESOLVED
     else Verification Failed
         Agent->>OS: Rollback to Original Configuration
-        Agent-->>API: Status: `ROLLBACK_TRIGGERED`
+        Agent-->>API: Status: ROLLBACK_TRIGGERED
     end
 ```
 

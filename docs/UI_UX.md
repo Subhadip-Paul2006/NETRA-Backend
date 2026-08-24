@@ -37,27 +37,27 @@ NETRA is designed with a **Terminal-First Philosophy**:
 
 ```mermaid
 flowchart TD
-    netra["`netra` CLI Root"]
+    netra["netra CLI Root"]
 
-    netra --> enroll["`enroll <token>`<br/>Pair device via Ed25519"]
-    netra --> status["`status`<br/>Show agent daemon health"]
-    netra --> scan["`scan`<br/>Run on-demand posture audit"]
-    netra --> findings["`findings`<br/>Query security posture defects"]
-    netra --> topology["`topology`<br/>Display local ARP & routing graph"]
-    netra --> service["`service`<br/>Manage background OS daemon"]
-    netra --> diag["`diagnostics`<br/>Generate local debug bundle"]
+    netra --> enroll["enroll [token]<br/>Pair device via Ed25519"]
+    netra --> status["status<br/>Show agent daemon health"]
+    netra --> scan["scan<br/>Run on-demand posture audit"]
+    netra --> findings["findings<br/>Query security posture defects"]
+    netra --> topology["topology<br/>Display local ARP & routing graph"]
+    netra --> service["service<br/>Manage background OS daemon"]
+    netra --> diag["diagnostics<br/>Generate local debug bundle"]
 
-    scan --> scan_all["`--all`"]
-    scan --> scan_net["`--network`"]
-    scan --> scan_fw["`--firewall`"]
-    scan --> scan_proc["`--processes`"]
+    scan --> scan_all["--all"]
+    scan --> scan_net["--network"]
+    scan --> scan_fw["--firewall"]
+    scan --> scan_proc["--processes"]
 
-    findings --> fnd_list["`list [--severity]`"]
-    findings --> fnd_show["`show <id>`"]
+    findings --> fnd_list["list [--severity]"]
+    findings --> fnd_show["show [id]"]
 
-    service --> svc_start["`start`"]
-    service --> svc_stop["`stop`"]
-    service --> svc_status["`status`"]
+    service --> svc_start["start"]
+    service --> svc_stop["stop"]
+    service --> svc_status["status"]
 ```
 
 ---
@@ -66,14 +66,14 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph Invocation["CLI Invocation (`netra findings list`)"]
+    subgraph Invocation["CLI Invocation (netra findings list)"]
         Parser["Cobra Parser"] --> Exec["Execution Engine"]
     end
 
-    Exec -->|Human Visual UI (Spinners, Headers, Colors)| Stderr["`stderr` (Terminal UI)"]
-    Exec -->|Pure Structured Data (JSON / Plain Text)| Stdout["`stdout` (Piped to `jq` / Scripts)"]
+    Exec -->|Human Visual UI (Spinners, Headers, Colors)| Stderr["stderr (Terminal UI)"]
+    Exec -->|Pure Structured Data (JSON / Plain Text)| Stdout["stdout (Piped to jq / Scripts)"]
 
-    Stdout --> JQ["`jq` / Python Script / CI Gate"]
+    Stdout --> JQ["jq / Python Script / CI Gate"]
     Stderr --> User["Human Operator Screen"]
 ```
 
@@ -120,7 +120,7 @@ When `--json` is specified, `netra` suppresses terminal spinners and writes a cl
 
 ```mermaid
 flowchart TD
-    Check{"Is Interactive TTY? (`isatty`)"}
+    Check{"Is Interactive TTY? (isatty)"}
     Check -- Yes --> Interactive["Interactive Mode<br/>• Live animated spinners<br/>• Colored ANSI tables<br/>• Interactive prompts"]
     Check -- No --> NonInteractive["CI / Scripting Mode<br/>• Spinners suppressed<br/>• Pure raw stdout<br/>• Exit code policy gates"]
 ```

@@ -89,12 +89,12 @@ NETRA decouples interactive analysis from continuous monitoring using a unified 
 flowchart TD
     subgraph RuntimeModes["Runtime Execution Modes"]
         direction TB
-        subgraph Mode1["1. Interactive CLI Mode (`netra scan`)"]
+        subgraph Mode1["1. Interactive CLI Mode (netra scan)"]
             CLIExec["User executes CLI command"] --> LocalEngine["Run in-process scanner OR query local daemon"]
             LocalEngine --> StreamSplit["Split Streams: stdout (JSON data) / stderr (ANSI UI)"]
         end
         
-        subgraph Mode2["2. Continuous Daemon Mode (`netra service`)"]
+        subgraph Mode2["2. Continuous Daemon Mode (netra service)"]
             ServiceExec["OS starts background unit (systemd / Windows SCM)"] --> SupDaemon["Supervisor manages watchdog & sandboxed worker"]
             SupDaemon --> StreamOut["Maintain persistent WSS stream to Control API"]
         end
@@ -201,9 +201,9 @@ flowchart TD
 flowchart TD
     Core["NETRA Common Core (Go)"]
     
-    Core --> WinAdapter["Windows Adapter<br/>• `Iphlpapi.dll` (Sockets & ARP)<br/>• `INetFwPolicy2` (Firewall COM)<br/>• DPAPI Key Storage<br/>• Job Objects Limits"]
-    Core --> LinuxAdapter["Linux Adapter<br/>• Netlink `rtnetlink` (Sockets)<br/>• `nftables` / `iptables`<br/>• SecretService Key Storage<br/>• cgroups v2 Limits"]
-    Core --> MacAdapter["macOS Adapter<br/>• `sysctl` / `getifaddrs`<br/>• `pfctl` Packet Filter<br/>• Apple Keychain Storage<br/>• POSIX Resource Limits"]
+    Core --> WinAdapter["Windows Adapter<br/>• Iphlpapi.dll (Sockets & ARP)<br/>• INetFwPolicy2 (Firewall COM)<br/>• DPAPI Key Storage<br/>• Job Objects Limits"]
+    Core --> LinuxAdapter["Linux Adapter<br/>• Netlink rtnetlink (Sockets)<br/>• nftables / iptables<br/>• SecretService Key Storage<br/>• cgroups v2 Limits"]
+    Core --> MacAdapter["macOS Adapter<br/>• sysctl / getifaddrs<br/>• pfctl Packet Filter<br/>• Apple Keychain Storage<br/>• POSIX Resource Limits"]
 ```
 
 ---

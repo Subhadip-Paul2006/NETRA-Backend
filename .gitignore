@@ -1,0 +1,25 @@
+# Binaries and build artifacts
+dist/
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test artifacts and coverage
+*.out
+*.test
+coverage.txt
+
+# Local configuration and sqlite
+*.db
+*.db-wal
+*.db-shm
+
+# IDE and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

@@ -31,7 +31,7 @@ NETRA enforces strict **Supply-chain Levels for Software Artifacts (SLSA Level 3
 flowchart LR
     subgraph SupplyChain["SLSA Level 3 Pipeline"]
         direction LR
-        Build["1. Hermetic Build<br/>(`CGO_ENABLED=0`)"] --> Scan["2. Security Checks<br/>(Govulncheck, CodeQL)"]
+        Build["1. Hermetic Build<br/>(CGO_ENABLED=0)"] --> Scan["2. Security Checks<br/>(Govulncheck, CodeQL)"]
         Scan --> SBOM["3. Generate SBOM<br/>(Syft SPDX / CycloneDX)"]
         SBOM --> Sign["4. Sign Artifacts<br/>(Cosign Keyless OIDC)"]
         Sign --> Publish["5. Publish Release<br/>(GitHub Releases + TUF)"]
@@ -48,10 +48,10 @@ Every Pull Request must pass mandatory automated checks before merging into `mai
 flowchart TD
     PR["Pull Request Opened"] --> Matrix{"Automated CI Quality Matrix"}
 
-    Matrix --> L1["1. Linting (`golangci-lint`, `ruff`)"]
+    Matrix --> L1["1. Linting (golangci-lint, ruff)"]
     Matrix --> L2["2. Unit & Integration Tests (100% Pass)"]
-    Matrix --> L3["3. Secret Scanning (`gitleaks`)"]
-    Matrix --> L4["4. Vulnerability Audit (`govulncheck`)"]
+    Matrix --> L3["3. Secret Scanning (gitleaks)"]
+    Matrix --> L4["4. Vulnerability Audit (govulncheck)"]
     Matrix --> L5["5. SAST Analysis (GitHub CodeQL)"]
 
     L1 --> Merge["All Checks Green ──> Approved for Merge"]
@@ -159,8 +159,8 @@ jobs:
 ```mermaid
 flowchart TD
     BuildDone["Binaries Compiled & Signed"] --> Provision["Provision Clean Smoke Test VMs (Ubuntu / Windows)"]
-    Provision --> TestInstall["Install Release Binary & Run `netra --self-test`"]
+    Provision --> TestInstall["Install Release Binary & Run netra --self-test"]
     TestInstall --> TestPass{"Self-Test Passed?"}
-    TestPass -- Yes --> Promote["Promote Tag to `latest` & Update Manifest"]
+    TestPass -- Yes --> Promote["Promote Tag to latest & Update Manifest"]
     TestPass -- No --> Rollback["Flag Release as BROKEN & Abort Release"]
 ```

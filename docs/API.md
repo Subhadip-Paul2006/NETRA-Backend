@@ -41,9 +41,9 @@ flowchart TD
     end
 
     subgraph Boundaries["API Architectural Boundaries"]
-        AgentAPI["Agent-Facing API & WSS Gateway<br/>• Outbound WSS (`/v1/agent/stream`)<br/>• Fallback REST (`/v1/agent/poll`, `/v1/agent/enroll`)<br/>• Auth: Ed25519 Request Signing"]
-        ControlAPI["Control-Plane Management API<br/>• REST Endpoints (`/v1/devices`, `/v1/findings`, etc.)<br/>• Auth: Bearer JWT / Scoped API Key<br/>• RBAC: Admin / Operator / Auditor"]
-        IntegrationAPI["Integration Gateway API<br/>• Webhook Handlers (`/v1/integrations/*`)<br/>• Auth: HMAC Signatures (Slack HMAC-SHA256)"]
+        AgentAPI["Agent-Facing API & WSS Gateway<br/>• Outbound WSS (/v1/agent/stream)<br/>• Fallback REST (/v1/agent/poll, /v1/agent/enroll)<br/>• Auth: Ed25519 Request Signing"]
+        ControlAPI["Control-Plane Management API<br/>• REST Endpoints (/v1/devices, /v1/findings, etc.)<br/>• Auth: Bearer JWT / Scoped API Key<br/>• RBAC: Admin / Operator / Auditor"]
+        IntegrationAPI["Integration Gateway API<br/>• Webhook Handlers (/v1/integrations/*)<br/>• Auth: HMAC Signatures (Slack HMAC-SHA256)"]
     end
 
     AgentHost --> AgentAPI
@@ -77,7 +77,7 @@ X-NETRA-Request-ID: req_1122334455667788
 X-NETRA-Signature: 6f8b9e... (128-character hex-encoded Ed25519 signature)
 ```
 
-$$\text{Canonical String} = \text{METHOD} \parallel \text{"\textbackslash n"} \parallel \text{PATH} \parallel \text{"\textbackslash n"} \parallel \text{TIMESTAMP} \parallel \text{"\textbackslash n"} \parallel \text{NONCE} \parallel \text{"\textbackslash n"} \parallel \text{REQUEST\_ID} \parallel \text{"\textbackslash n"} \parallel \text{SHA256}(\text{BODY})$$
+$$\text{Canonical String} = \text{METHOD} \parallel \text{"\n"} \parallel \text{PATH} \parallel \text{"\n"} \parallel \text{TIMESTAMP} \parallel \text{"\n"} \parallel \text{NONCE} \parallel \text{"\n"} \parallel \text{REQUEST\_ID} \parallel \text{"\n"} \parallel \text{SHA256}(\text{BODY})$$
 
 ---
 

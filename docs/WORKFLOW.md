@@ -64,7 +64,7 @@ flowchart TD
     PR --> CI{"6. Automated CI Quality Gates"}
     CI -- Pass --> PeerReview["7. Core Maintainer Review"]
     CI -- Fail --> Impl
-    PeerReview --> Merge["8. Squash & Merge to `main`"]
+    PeerReview --> Merge["8. Squash & Merge to main"]
 ```
 
 ---
@@ -127,9 +127,9 @@ Any architectural modification impacting security models, database schemas, prot
 
 ```mermaid
 flowchart TD
-    Vuln["Critical Vulnerability Identified"] --> HotfixBranch["Create `hotfix/security-patch` from `main`"]
+    Vuln["Critical Vulnerability Identified"] --> HotfixBranch["Create hotfix/security-patch from main"]
     HotfixBranch --> Patch["Implement Targeted Patch + Regression Test"]
     Patch --> ExpeditedReview["Expedited Review by Security Lead"]
-    ExpeditedReview --> MergeMain["Merge directly to `main`"]
-    MergeMain --> TagRelease["Trigger Patch Release Tag (`v1.0.1`)"]
+    ExpeditedReview --> MergeMain["Merge directly to main"]
+    MergeMain --> TagRelease["Trigger Patch Release Tag (v1.0.1)"]
 ```

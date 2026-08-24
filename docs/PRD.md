@@ -125,11 +125,11 @@ journey
     title Alex's Operational Journey with NETRA
     section Installation & Enrollment
       Download single static binary: 5: Alex
-      Run `netra enroll --token <token>`: 5: Alex
-      Verify daemon status `netra status`: 5: Alex
+      Run netra enroll --token [token]: 5: Alex
+      Verify daemon status netra status: 5: Alex
     section Posture Reconnaissance
-      Execute audit `netra scan --all`: 5: Alex
-      View findings in terminal `netra findings list`: 4: Alex
+      Execute audit netra scan --all: 5: Alex
+      View findings in terminal netra findings list: 4: Alex
       Export JSON report for CI gate: 5: Alex
     section Controlled Remediation
       Review recommended firewall fix: 4: Alex
@@ -151,7 +151,7 @@ journey
 
 1. **Binary Footprint**: Executable size $\le 20\text{MB}$ stripped.
 2. **Runtime Footprint**: Idle memory $\le 25\text{MB}$ RSS; CPU utilization $\le 0.1\%$.
-3. **Execution Latency**: Full 4-scanner audit completes in $<500\text{ms}$.
+3. **Execution Latency**: Full 4-scanner audit completes in $< 500\text{ ms}$.
 4. **Deduplication Rate**: Repeated scans of unchanged defects produce exactly $0\%$ duplicate finding records.
 5. **Offline Partition Tolerance**: 100% telemetry retention verified across 24-hour network outages.
 

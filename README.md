@@ -41,7 +41,7 @@ Traditional open-source monitoring tools output overwhelming, uncurated log stre
 ```mermaid
 flowchart TD
     subgraph Host["Monitored Endpoint Host"]
-        Agent["NETRA Go Agent (<20MB Static Binary)"]
+        Agent["NETRA Go Agent (under 20MB Static Binary)"]
         SQLite[("Local SQLite WAL DB<br/>(Local-First State & Offline Queue)")]
         CLI["netra CLI Tool (ANSI UI / JSON stdout)"]
         

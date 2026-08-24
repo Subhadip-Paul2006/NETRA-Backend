@@ -64,7 +64,7 @@ mindmap
     The NETRA Gap
       Topology Awareness
       Deterministic Evidence
-      Single Go Binary (<20MB)
+      Single Go Binary (under 20MB)
       CLI-First Composability
       PostgreSQL RLS Core
 ```
@@ -92,15 +92,15 @@ An audit of the legacy repository (`https://github.com/Subhadip-Paul2006/NETRA-a
 flowchart TD
     subgraph LegacyNETRA["Legacy NETRA Anti-Patterns (Rejected)"]
         L1["Python Monorepo + PyInstaller<br/>(Bloated >60MB binary, 50MB RAM idle)"]
-        L2["CLI Substring Scraping<br/>(`netsh`, `ufw` text checks; broken on non-English OS)"]
+        L2["CLI Substring Scraping<br/>(netsh, ufw text checks; broken on non-English OS)"]
         L3["Discord as Primary Control Plane<br/>(2k char limits, rate limits, no enterprise RBAC)"]
         L4["DB Nonce Table Writes<br/>(High write amplification on heartbeats)"]
     end
 
     subgraph Evolution["New NETRA Architectural Decisions (Adopted)"]
-        E1["Go Static Binary (`CGO_ENABLED=0`, <20MB, <25MB RAM)"]
-        E2["Native OS Syscalls & COM APIs (`GetExtendedTcpTable`, Netlink)"]
-        E3["CLI-First (`netra --json`) + Slack Approval Webhooks"]
+        E1["Go Static Binary (CGO_ENABLED=0, under 20MB, under 25MB RAM)"]
+        E2["Native OS Syscalls & COM APIs (GetExtendedTcpTable, Netlink)"]
+        E3["CLI-First (netra --json) + Slack Approval Webhooks"]
         E4["In-Memory Sliding Window Nonce Cache"]
     end
 

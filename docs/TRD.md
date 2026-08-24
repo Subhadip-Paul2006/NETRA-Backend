@@ -44,10 +44,10 @@
 ```mermaid
 flowchart LR
     subgraph Budgets["Runtime Resource Ceilings"]
-        B1["Binary Size: < 20MB (Static)"]
-        B2["Idle RAM: < 25MB RSS"]
+        B1["Binary Size: under 20MB (Static)"]
+        B2["Idle RAM: under 25MB RSS"]
         B3["Peak CPU: < 20% Single Core"]
-        B4["Scan Duration: < 500ms (4 Scanners)"]
+        B4["Scan Duration: under 500ms (4 Scanners)"]
         B5["Cold Startup: < 100ms to ready"]
     end
 ```
@@ -81,7 +81,7 @@ flowchart LR
 * **Algorithm**: **Ed25519 (RFC 8032)** asymmetric public-key signature standard.
 * **Key Storage**: Machine-level protected keyring; private key is never written to unencrypted plaintext disk files.
 * **Replay Protection**:
-  - Timestamp verification window: $\pm 300\text{ seconds}$ from server UTC.
+  - Timestamp verification window: $\pm 300\text{ s}$ from server UTC.
   - In-memory sliding-window nonce cache: Rejects identical nonces within 600 seconds.
 
 ---
@@ -106,7 +106,7 @@ flowchart LR
 
 * **Passive Extraction**: Reads kernel routing tables and ARP neighbor caches without sending network broadcast scans.
 * **Graph Synthesis**: Central Control API synthesizes graph edges between endpoints sharing identical subnets and default gateways.
-* **Query Latency**: PostgreSQL Recursive CTE path queries must execute in $<10\text{ms}$ for graphs up to 50,000 nodes.
+* **Query Latency**: PostgreSQL Recursive CTE path queries must execute in $< 10\text{ ms}$ for graphs up to 50,000 nodes.
 
 ---
 
