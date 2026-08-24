@@ -149,7 +149,10 @@ impl From<std::io::Error> for NetraError {
 
 impl From<serde_json::Error> for NetraError {
     fn from(err: serde_json::Error) -> Self {
-        Self::new(ErrorKind::Config, format!("JSON serialization error: {}", err))
+        Self::new(
+            ErrorKind::Config,
+            format!("JSON serialization error: {}", err),
+        )
     }
 }
 
@@ -168,7 +171,9 @@ mod tests {
         let err = NetraError::config("Missing required field").with_context("field=server_url");
         assert_eq!(err.kind(), ErrorKind::Config);
         assert_eq!(err.code(), "ERR_CONFIG_INVALID");
-        assert!(err.to_string().contains("[ERR_CONFIG_INVALID] Missing required field"));
+        assert!(err
+            .to_string()
+            .contains("[ERR_CONFIG_INVALID] Missing required field"));
         assert!(err.to_string().contains("field=server_url"));
     }
 

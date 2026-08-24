@@ -126,13 +126,17 @@ impl NetraConfig {
     /// Validates configuration parameters and boundaries.
     pub fn validate(&self) -> Result<()> {
         if self.network.heartbeat_interval_seconds == 0 {
-            return Err(NetraError::config("Heartbeat interval must be greater than 0"));
+            return Err(NetraError::config(
+                "Heartbeat interval must be greater than 0",
+            ));
         }
         if self.network.timeout_seconds == 0 {
             return Err(NetraError::config("Request timeout must be greater than 0"));
         }
         if self.storage.max_storage_bytes < 10 * 1024 * 1024 {
-            return Err(NetraError::config("Max storage quota cannot be less than 10MB"));
+            return Err(NetraError::config(
+                "Max storage quota cannot be less than 10MB",
+            ));
         }
         let valid_levels = ["trace", "debug", "info", "warn", "error"];
         if !valid_levels.contains(&self.logging.level.as_str()) {
@@ -161,7 +165,9 @@ mod tests {
         let mut config = NetraConfig::default();
         config.network.heartbeat_interval_seconds = 0;
         let err = config.validate().unwrap_err();
-        assert!(err.to_string().contains("Heartbeat interval must be greater than 0"));
+        assert!(err
+            .to_string()
+            .contains("Heartbeat interval must be greater than 0"));
     }
 
     #[test]
