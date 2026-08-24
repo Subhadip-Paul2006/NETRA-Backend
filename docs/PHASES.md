@@ -2,10 +2,10 @@
 
 > **Overview**
 >
-> This document defines the authoritative, dependency-driven phased implementation roadmap for NETRA (Network & Endpoint Threat Reconnaissance Architecture). It enforces rigorous engineering gates where each phase proceeds strictly from specification and API contracts through implementation, security testing, and cross-platform verification.
+> This document defines the authoritative, dependency-driven phased implementation roadmap for NETRA (Network & Endpoint Threat Reconnaissance Architecture). It enforces rigorous engineering gates where each phase proceeds strictly from specification and API contracts through Rust-first implementation, security testing, and cross-platform verification.
 
 **Status:** Specified / Designed  
-**Audience:** Core Maintainers, Engineering Leads, Security Researchers, Open-Source Contributors  
+**Audience:** Core Maintainers, Systems Architects, Security Researchers, Open-Source Contributors  
 **Purpose:** Serves as the master execution blueprint establishing deliverables, verification gates, and milestone dependencies across all 17 engineering phases.
 
 ---
@@ -15,17 +15,17 @@
 1. [Phased Engineering Philosophy & Execution Order](#1-phased-engineering-philosophy--execution-order)
 2. [Master Milestone Timeline](#2-master-milestone-timeline)
 3. [Phase Dependency & Gating Graph](#3-phase-dependency--gating-graph)
-4. [Phase 0: Deep Research & Architectural Specification (COMPLETED)](#4-phase-0-deep-research--architectural-specification-completed)
-5. [Phase 1: Repository Foundation & Hermetic Development Environment](#5-phase-1-repository-foundation--hermetic-development-environment)
-6. [Phase 2: NETRA Core Runtime & OS Sandboxing](#6-phase-2-netra-core-runtime--os-sandboxing)
-7. [Phase 3: Local SQLite Engine & State Management](#7-phase-3-local-sqlite-engine--state-management)
-8. [Phase 4: CLI Framework & Output Formatting (ANSI / JSON)](#8-phase-4-cli-framework--output-formatting-ansi--json)
+4. [Phase 0: Deep Research & Architecture Lock (COMPLETED)](#4-phase-0-deep-research--architecture-lock-completed)
+5. [Phase 1: Repository & Rust Toolchain Foundation](#5-phase-1-repository--rust-toolchain-foundation)
+6. [Phase 2: Rust Core Runtime & OS Sandboxing](#6-phase-2-rust-core-runtime--os-sandboxing)
+7. [Phase 3: Local SQLite Engine & State Management (`rusqlite`)](#7-phase-3-local-sqlite-engine--state-management-rusqlite)
+8. [Phase 4: CLI Framework & Output Formatting (Rust `clap`)](#8-phase-4-cli-framework--output-formatting-rust-clap)
 9. [Phase 5: Control API Gateway & API Contracts](#9-phase-5-control-api-gateway--api-contracts)
 10. [Phase 6: Device Identity & Asymmetric Ed25519 WSS Protocol](#10-phase-6-device-identity--asymmetric-ed25519-wss-protocol)
 11. [Phase 7: Core Security Observation (Sockets, Processes, Firewall, Users)](#11-phase-7-core-security-observation-sockets-processes-firewall-users)
 12. [Phase 8: Network Intelligence & Topology Discovery](#12-phase-8-network-intelligence--topology-discovery)
 13. [Phase 9: Browser & Web Exposure Observation Layer](#13-phase-9-browser--web-exposure-observation-layer)
-14. [Phase 10: Vulnerability Intelligence & CVE Correlation Engine](#14-phase-10-vulnerability-intelligence--cve-correlation-engine)
+14. [Phase 10: Modular Vulnerability Intelligence & CVE Correlation](#14-phase-10-modular-vulnerability-intelligence--cve-correlation)
 15. [Phase 11: 10-Stage Finding Engine, Risk Scoring & Policy Model](#15-phase-11-10-stage-finding-engine-risk-scoring--policy-model)
 16. [Phase 12: Controlled Remediation Engine & Verification Loops](#16-phase-12-controlled-remediation-engine--verification-loops)
 17. [Phase 13: Cloud Coordination & Supabase Multi-Tenant RLS Core](#17-phase-13-cloud-coordination--supabase-multi-tenant-rls-core)
@@ -52,12 +52,12 @@ $$\text{Research} \longrightarrow \text{Requirements} \longrightarrow \text{Arch
 ```mermaid
 timeline
     title NETRA Engineering Master Timeline (Phases 0 - 17)
-    section Foundation & Core
+    section Foundation & Rust Core
         Phase 0 (Research & Specs) : Completed 16 Authoritative Documents
-        Phase 1 (Dev Environment) : Go Toolchain : Linting : CI Matrix
-        Phase 2 (Core Runtime) : Supervisor Daemon : Sandboxed Worker : Signals
-        Phase 3 (Local SQLite) : WAL Mode : Pruning : Thread Safety
-        Phase 4 (CLI Interface) : Cobra CLI : Stream Separation : Pure JSON
+        Phase 1 (Rust Toolchain) : Cargo Workspace : Clippy : CI Matrix
+        Phase 2 (Core Runtime) : Tokio Async Loop : Sandboxed Worker : Signals
+        Phase 3 (Local SQLite) : rusqlite WAL : Pruning : Thread Safety
+        Phase 4 (CLI Interface) : Rust clap : Stream Separation : Pure JSON
     section Protocol & Telemetry
         Phase 5 (Control API) : OpenAPI 3.1 : Endpoints : Auth Middleware
         Phase 6 (Ed25519 & WSS) : Keyring Storage : Request Signing : Protobuf Stream
@@ -82,10 +82,10 @@ timeline
 
 ```mermaid
 flowchart TD
-    P0["Phase 0: Research & Specs (DONE)"] --> P1["Phase 1: Dev Environment & CI"]
-    P1 --> P2["Phase 2: Core Runtime & Supervisor"]
-    P2 --> P3["Phase 3: Local SQLite Engine"]
-    P3 --> P4["Phase 4: CLI Framework"]
+    P0["Phase 0: Research & Specs (DONE)"] --> P1["Phase 1: Rust Toolchain & CI"]
+    P1 --> P2["Phase 2: Rust Core Runtime & Supervisor"]
+    P2 --> P3["Phase 3: Local SQLite Engine (rusqlite)"]
+    P3 --> P4["Phase 4: CLI Framework (clap)"]
     
     P4 --> P5["Phase 5: Control API Gateway"]
     P5 --> P6["Phase 6: Ed25519 & WSS Protocol"]
@@ -107,57 +107,57 @@ flowchart TD
 
 ---
 
-## 4. Phase 0: Deep Research & Architectural Specification (COMPLETED)
+## 4. Phase 0: Deep Research & Architecture Lock (COMPLETED)
 
 * **Status**: `COMPLETED`
-* **Goal**: Conduct deep security ecosystem research, legacy post-mortem, and produce the authoritative 16-document engineering specification suite.
+* **Goal**: Complete ecosystem discovery, legacy post-mortem, reference evaluation (Drishti-Innofusion), and establish the 16-document engineering specification suite locked under a Rust-first systems architecture.
 * **Deliverables**: Complete specifications in `README.md` and `docs/` (`PRD.md`, `TRD.md`, `ARCHITECTURE.md`, `SYSTEM_DESIGN.md`, `API.md`, `SECURITY_CHECK.md`, `PHASES.md`, `UI_UX.md`, `USAGE.md`, `OS_VERSATILE.md`, `CI_CD.md`, `WORKFLOW.md`, `RESEARCH.md`, `SLACK.md`, `DISCORD.md`).
-* **Exit Gate**: All documents consistent, cross-linked, reviewed, and approved.
+* **Exit Gate**: All documents consistent, cross-linked, verified against Rust-first architecture, and locked for implementation.
 
 ---
 
-## 5. Phase 1: Repository Foundation & Hermetic Development Environment
+## 5. Phase 1: Repository & Rust Toolchain Foundation
 
 * **Status**: `PROPOSED / NEXT`
-* **Goal**: Initialize clean Go 1.22+ workspace, linting configurations, and automated CI pipelines.
+* **Goal**: Initialize clean Cargo workspace, Rust 2021 toolchains, clippy lint configurations, and automated CI pipelines.
 * **Scope**:
-  - `go.mod` initialization with minimal, vetted dependencies.
-  - `.golangci.yml` configuration (enforcing staticcheck, errcheck, gosec).
-  - GitHub Actions CI workflow for pull request validation.
-* **Exit Gate**: `go test ./...` and `golangci-lint run` pass cleanly with zero warnings.
+  - `Cargo.toml` workspace initialization (`netra-core`, `netra-agent`, `netra-cli`, `netra-api`).
+  - `.clippy.toml` configuration (enforcing strict clippy lints, `cargo-deny`, `cargo-audit`).
+  - GitHub Actions CI workflow for pull request validation across Windows, Linux, and macOS.
+* **Exit Gate**: `cargo test --workspace` and `cargo clippy --all-targets -- -D warnings` pass cleanly.
 
 ---
 
-## 6. Phase 2: NETRA Core Runtime & OS Sandboxing
+## 6. Phase 2: Rust Core Runtime & OS Sandboxing
 
 * **Status**: `PLANNED`
-* **Goal**: Implement the two-tier process supervisor and sandboxed worker.
+* **Goal**: Implement the two-tier process supervisor and sandboxed worker in Rust.
 * **Scope**:
-  - Supervisor daemon lifecycle (start, stop, restart, signals).
-  - Worker process spawning with OS resource limits (cgroups / Job Objects).
+  - Supervisor daemon lifecycle (start, stop, restart, Unix/Win32 signal handling).
+  - Worker process spawning with OS resource limits (cgroups v2 on Linux / Job Objects on Windows).
   - Authenticated local IPC over domain sockets / named pipes (`0600` DACLs).
-* **Exit Gate**: Worker terminates and restarts within 2 seconds upon crash; memory bounded at <100MB RSS.
+* **Exit Gate**: Worker terminates and restarts within 2 seconds upon crash; memory bounded at under 100MB RSS.
 
 ---
 
-## 7. Phase 3: Local SQLite Engine & State Management
+## 7. Phase 3: Local SQLite Engine & State Management (`rusqlite`)
 
 * **Status**: `PLANNED`
-* **Goal**: Build the local-first SQLite persistence layer.
+* **Goal**: Build the local-first SQLite persistence layer in Rust using `rusqlite`.
 * **Scope**:
-  - Schema migrations (`LOCAL_CONFIG`, `OBSERVATION_QUEUE`, `LOCAL_FINDINGS`).
+  - Embedded migrations (`LOCAL_CONFIG`, `OBSERVATION_QUEUE`, `LOCAL_FINDINGS`).
   - Enable WAL mode and transactional read/write isolation.
   - Automatic LRU queue pruning at 500MB storage ceiling.
 * **Exit Gate**: 10,000 concurrent insert/select operations execute without database lock timeouts.
 
 ---
 
-## 8. Phase 4: CLI Framework & Output Formatting (ANSI / JSON)
+## 8. Phase 4: CLI Framework & Output Formatting (Rust `clap`)
 
 * **Status**: `PLANNED`
-* **Goal**: Build the Unix-philosophy `netra` CLI.
+* **Goal**: Build the Unix-philosophy `netra` CLI in Rust using `clap`.
 * **Scope**:
-  - Cobra CLI command tree (`enroll`, `status`, `scan`, `findings`, `diagnostics`).
+  - Command hierarchy (`enroll`, `status`, `scan`, `findings`, `diagnostics`).
   - Output stream separation (`stdout` JSON data, `stderr` ANSI human UI).
   - Exit code engine (`0` Success, `1` Error, `2` Policy Violation, `3` Bad Syntax).
 * **Exit Gate**: `netra --json | jq .` parses cleanly in non-interactive CI pipelines.
@@ -167,9 +167,9 @@ flowchart TD
 ## 9. Phase 5: Control API Gateway & API Contracts
 
 * **Status**: `PLANNED`
-* **Goal**: Implement the REST Control-Plane API following OpenAPI 3.1.
+* **Goal**: Implement the REST Control-Plane API following OpenAPI 3.1 specifications.
 * **Scope**:
-  - Routing engine (Gin/Fiber or standard `net/http`).
+  - Asynchronous HTTP routing engine (Axum / Actix-Web in Rust).
   - Authentication and RBAC middleware.
   - Universal request/response/error envelopes and idempotency keys.
 * **Exit Gate**: 100% of defined endpoints pass automated integration test suites.
@@ -179,11 +179,11 @@ flowchart TD
 ## 10. Phase 6: Device Identity & Asymmetric Ed25519 WSS Protocol
 
 * **Status**: `PLANNED`
-* **Goal**: Implement asymmetric Ed25519 device attestation and WSS streaming.
+* **Goal**: Implement asymmetric Ed25519 device attestation and WSS streaming in Rust.
 * **Scope**:
   - Ed25519 keypair generation and OS keyring persistence (DPAPI / SecretService).
   - Canonical request signing and header verification.
-  - Persistent WebSocket gateway with Protobuf v3 frame encoding.
+  - Persistent WebSocket gateway with Protobuf v3 (`prost`) frame encoding.
 * **Exit Gate**: Replay attack with stale timestamp (>300s) or duplicated nonce is rejected with HTTP 401.
 
 ---
@@ -191,13 +191,13 @@ flowchart TD
 ## 11. Phase 7: Core Security Observation Subsystems
 
 * **Status**: `PLANNED`
-* **Goal**: Implement native OS posture scanners.
+* **Goal**: Implement native OS posture scanners in Rust.
 * **Scope**:
-  - `SCAN_NETWORK`: Native OS socket tables and listening port mapping.
+  - `SCAN_NETWORK`: Native OS socket tables and listening port mapping (`windows-sys` / `nix`).
   - `SCAN_PROCESSES`: Process enumeration, PID trees, and binary hashing.
-  - `SCAN_FIREWALL`: Kernel packet filter status (Windows Firewall / `nftables`).
+  - `SCAN_FIREWALL`: Kernel packet filter status (Windows Firewall COM / `nftables`).
   - `SCAN_USERS`: Local user account and privilege auditing.
-* **Exit Gate**: All 4 scanners execute in <500ms total on clean benchmark machines.
+* **Exit Gate**: All 4 scanners execute in under 500ms total on clean benchmark machines.
 
 ---
 
@@ -208,14 +208,14 @@ flowchart TD
 * **Scope**:
   - ARP table and routing table passive extraction.
   - Gateway traceroute and subnet neighbor correlation.
-* **Exit Gate**: Correctly maps local default gateway and adjacent hosts in <10ms.
+* **Exit Gate**: Correctly maps local default gateway and adjacent hosts in under 10ms.
 
 ---
 
 ## 13. Phase 9: Browser & Web Exposure Observation Layer
 
 * **Status**: `PLANNED`
-* **Goal**: Correlate OS sockets with web browser processes while enforcing strict academic privacy boundaries.
+* **Goal**: Correlate OS sockets with web browser processes in Rust while enforcing strict academic privacy boundaries.
 * **Scope**:
   - Socket-to-PID correlation matching browser binaries (`chrome`, `firefox`, `edge`).
   - Domain mapping via OS DNS cache and TLS SNI headers.
@@ -223,10 +223,10 @@ flowchart TD
 
 ---
 
-## 14. Phase 10: Vulnerability Intelligence & CVE Correlation Engine
+## 14. Phase 10: Modular Vulnerability Intelligence & CVE Correlation
 
 * **Status**: `PLANNED`
-* **Goal**: Correlate installed packages against offline CVE catalogs.
+* **Goal**: Correlate installed packages against modular, open CVE catalogs (OSV / NVD).
 * **Scope**:
   - Package inventory extractors (`dpkg`, `rpm`, Registry Uninstall keys).
   - Deterministic version range matching against cached NVD/OSV feeds.
@@ -237,7 +237,7 @@ flowchart TD
 ## 15. Phase 11: 10-Stage Finding Engine, Risk Scoring & Policy Model
 
 * **Status**: `PLANNED`
-* **Goal**: Implement the deterministic 10-stage reasoning pipeline.
+* **Goal**: Implement the deterministic 10-stage reasoning pipeline in Rust.
 * **Scope**:
   - Deterministic SHA-256 fingerprinting.
   - Composite risk scoring formula (Base severity $\times$ Exposure multiplier $\times$ Asset weight).
@@ -286,7 +286,7 @@ flowchart TD
 * **Status**: `PLANNED`
 * **Goal**: Implement reproducible build pipelines and supply chain security.
 * **Scope**:
-  - Hermetic `CGO_ENABLED=0` static binary builds.
+  - Fully reproducible static binary builds (`cargo build --release --locked`).
   - Software Bill of Materials (SBOM) generation via Syft.
   - Cosign binary signing and The Update Framework (TUF) auto-update verification.
 * **Exit Gate**: Corrupted update payload is rejected before disk execution.
@@ -298,7 +298,7 @@ flowchart TD
 * **Status**: `PLANNED`
 * **Goal**: Embed production-grade observability and long-term stability controls.
 * **Scope**:
-  - Structured JSON logging and OpenTelemetry metrics.
+  - Structured JSON logging (`tracing` crate) and OpenTelemetry metrics.
   - 24-hour soak tests measuring memory leak stability (<0.1MB/hour drift).
 * **Exit Gate**: Agent maintains continuous stability under simulated 24-hour network flapping.
 
@@ -309,6 +309,6 @@ flowchart TD
 * **Status**: `PLANNED`
 * **Goal**: Explore high-density scale and advanced OS-level sensor research.
 * **Scope**:
-  - Linux eBPF process execution and socket tracking probes.
+  - Linux eBPF process execution and socket tracking probes (`aya` Rust eBPF library).
   - Distributed Redis 7 WSS session routing for 10,000+ nodes.
 * **Exit Gate**: Performance benchmark confirms sub-millisecond task dispatch at 10,000 active nodes.

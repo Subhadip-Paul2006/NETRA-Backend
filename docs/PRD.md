@@ -52,7 +52,7 @@ flowchart TD
     Void["THE SECURITY CONTEXT VOID"]
     Void --> EDR["Enterprise EDRs: Closed, Expensive, Kernel-Intrusive"]
     Void --> Raw["Open-Source Collectors: Uncurated, No Network Context, No Fixes"]
-    Void --> NETRA["★ NETRA: Topology-Aware, Local-First, Single Static Go Binary"]
+    Void --> NETRA["★ NETRA: Topology-Aware, Local-First, Single Static Rust Binary"]
 ```
 
 ---
@@ -83,7 +83,7 @@ flowchart LR
 
 1. **Deterministic Reasoning**: Zero subjective or unproven alerts; every finding is backed by an immutable SHA-256 evidence artifact.
 2. **Topology Synthesis**: Automatically discover Layer-2/Layer-3 adjacent neighbors without active port scanning.
-3. **Resource Efficiency**: Single Go static binary (<20MB, <25MB RAM, <0.1% CPU).
+3. **Rust-First Resource Efficiency**: Single Rust static binary (under 20MB, under 15MB idle RAM, under 0.1% CPU).
 4. **Local-First Reliability**: Uninterrupted local scanning and state storage across network partitions.
 5. **Controlled Remediation**: Human-in-the-loop corrective actions with automated pre/post verification probes.
 
@@ -108,13 +108,13 @@ flowchart TD
 
 | Capability Key | Focus Area | Primary Mechanism |
 | :--- | :--- | :--- |
-| **`SCAN_NETWORK`** | Sockets & Ports | Native OS socket table extraction (`GetExtendedTcpTable` / Netlink) |
+| **`SCAN_NETWORK`** | Sockets & Ports | Native OS socket table extraction (`windows-sys` / `nix` Netlink) |
 | **`SCAN_PROCESSES`** | Process Auditing | Enumerates running binaries, CLI flags, and binary SHA-256 hashes |
 | **`SCAN_FIREWALL`** | Packet Filtering | Windows Firewall COM / Linux `nftables` profile verification |
 | **`SCAN_USERS`** | Accounts & Sudo | Local user account privilege and dormant account audit |
 | **`OBSERVE_TOPOLOGY`** | Network Graph | Passive ARP cache and routing table path extraction |
 | **`OBSERVE_WEB_EXPOSURE`**| Browser Outbound | Socket-to-PID correlation matching browser processes (Zero content sniffing) |
-| **`CORRELATE_CVE`** | Vulnerability Match | Local package inventory matching against cached NVD/OSV feeds |
+| **`CORRELATE_CVE`** | Vulnerability Match | Local package inventory matching against open NVD/OSV feeds |
 
 ---
 
@@ -141,16 +141,16 @@ journey
 
 ## 9. MVP Scope Boundaries (Phases 1–4)
 
-* **Must Have (MVP)**: Single Go binary, Ed25519 device authentication, 4 core scanners (`NETWORK`, `PROCESSES`, `FIREWALL`, `USERS`), local SQLite state storage, and `netra` CLI.
+* **Must Have (MVP)**: Single Rust binary, Ed25519 device authentication, 4 core scanners (`NETWORK`, `PROCESSES`, `FIREWALL`, `USERS`), local SQLite state storage, and `netra` CLI.
 * **Should Have (Phase 2)**: Cross-agent network topology graph, browser exposure correlation, offline CVE matching, and Slack approval gateway.
-* **Future Horizons (Phase 4+)**: Linux eBPF process sensors and distributed multi-node clustering.
+* **Future Horizons (Phase 4+)**: Linux eBPF process sensors (`aya` Rust library) and distributed multi-node clustering.
 
 ---
 
 ## 10. Academic Success Metrics & Verification Criteria
 
-1. **Binary Footprint**: Executable size $\le 20\text{MB}$ stripped.
-2. **Runtime Footprint**: Idle memory $\le 25\text{MB}$ RSS; CPU utilization $\le 0.1\%$.
+1. **Binary Footprint**: Executable size $\le 20\text{ MB}$ stripped.
+2. **Runtime Footprint**: Idle memory $\le 15\text{ MB}$ RSS; CPU utilization $\le 0.1\%$.
 3. **Execution Latency**: Full 4-scanner audit completes in $< 500\text{ ms}$.
 4. **Deduplication Rate**: Repeated scans of unchanged defects produce exactly $0\%$ duplicate finding records.
 5. **Offline Partition Tolerance**: 100% telemetry retention verified across 24-hour network outages.

@@ -2,7 +2,7 @@
 
 > **Overview**
 >
-> This document details the threat models, cryptographic verification systems, access control boundaries, sandboxing mechanisms, and supply chain safeguards implemented across NETRA (Network & Endpoint Threat Reconnaissance Architecture).
+> This document details the threat models, cryptographic verification systems, access control boundaries, Rust memory safety guarantees, and supply chain safeguards implemented across NETRA (Network & Endpoint Threat Reconnaissance Architecture).
 
 **Status:** Specified / Designed  
 **Audience:** Security Engineers, Cryptographers, Academic Reviewers, System Auditors  
@@ -13,15 +13,16 @@
 ## Contents
 
 1. [Core Security Principles & Trust Boundaries](#1-core-security-principles--trust-boundaries)
-2. [Device Identity & Asymmetric Cryptography (Ed25519)](#2-device-identity--asymmetric-cryptography-ed25519)
-3. [Local State & SQLite Security (Encryption & WAL)](#3-local-state--sqlite-security-encryption--wal)
-4. [Control Plane & Multi-Tenant Row-Level Security (RLS)](#4-control-plane--multi-tenant-row-level-security-rls)
-5. [Pre-Compiled Capability Whitelist vs. Prohibited Remote Shell](#5-pre-compiled-capability-whitelist-vs-prohibited-remote-shell)
-6. [Browser Observation Privacy & Security Guardrails](#6-browser-observation-privacy--security-guardrails)
-7. [Controlled Remediation Security & Verification Loops](#7-controlled-remediation-security--verification-loops)
-8. [Supply Chain Integrity, SBOM & TUF Secure Updates](#8-supply-chain-integrity-sbom--tuf-secure-updates)
-9. [Compromised Agent Threat Model](#9-compromised-agent-threat-model)
-10. [Comprehensive STRIDE Threat Model Matrix](#10-comprehensive-stride-threat-model-matrix)
+2. [Rust Memory Safety & Concurrency Guarantees](#2-rust-memory-safety--concurrency-guarantees)
+3. [Device Identity & Asymmetric Cryptography (Ed25519)](#3-device-identity--asymmetric-cryptography-ed25519)
+4. [Local State & SQLite Security (Encryption & WAL)](#4-local-state--sqlite-security-encryption--wal)
+5. [Control Plane & Multi-Tenant Row-Level Security (RLS)](#5-control-plane--multi-tenant-row-level-security-rls)
+6. [Pre-Compiled Capability Whitelist vs. Prohibited Remote Shell](#6-pre-compiled-capability-whitelist-vs-prohibited-remote-shell)
+7. [Browser Observation Privacy & Security Guardrails](#7-browser-observation-privacy--security-guardrails)
+8. [Controlled Remediation Security & Verification Loops](#8-controlled-remediation-security--verification-loops)
+9. [Supply Chain Integrity, SBOM & TUF Secure Updates](#9-supply-chain-integrity-sbom--tuf-secure-updates)
+10. [Compromised Agent Threat Model](#10-compromised-agent-threat-model)
+11. [Comprehensive STRIDE Threat Model Matrix](#11-comprehensive-stride-threat-model-matrix)
 
 ---
 
@@ -30,18 +31,28 @@
 ```mermaid
 flowchart TD
     subgraph ZeroTrust["NETRA Security Tenets"]
-        T1["1. Cryptographic Identity (Ed25519 / No Shared Secrets)"]
-        T2["2. Local-First Hardening (Encrypted SQLite & DACLs)"]
-        T3["3. Zero Inbound Listening Ports (100% Outbound WSS)"]
-        T4["4. Pre-Compiled Execution (Zero Remote Shell / Eval)"]
-        T5["5. Database-Engine Multi-Tenancy (PostgreSQL RLS)"]
-        T6["6. Strict Academic Privacy Bounds (Zero Payload Sniffing)"]
+        T1["1. Rust Memory Safety (Zero Buffer Overflows / No GC)"]
+        T2["2. Cryptographic Identity (Ed25519 / No Shared Secrets)"]
+        T3["3. Local-First Hardening (Encrypted SQLite & DACLs)"]
+        T4["4. Zero Inbound Listening Ports (100% Outbound WSS)"]
+        T5["5. Pre-Compiled Execution (Zero Remote Shell / Eval)"]
+        T6["6. Database-Engine Multi-Tenancy (PostgreSQL RLS)"]
+        T7["7. Strict Academic Privacy Bounds (Zero Payload Sniffing)"]
     end
 ```
 
 ---
 
-## 2. Device Identity & Asymmetric Cryptography (Ed25519)
+## 2. Rust Memory Safety & Concurrency Guarantees
+
+Building the NETRA endpoint layer in Rust eliminates an entire class of critical security vulnerabilities commonly afflicting C/C++ agents:
+* **Spatial & Temporal Memory Safety**: Rust's ownership, borrow checker, and lifetime system prevents buffer overflows, use-after-free, double-free, and dangling pointer vulnerabilities at compile-time.
+* **Data Race Freedom**: Multi-threaded concurrency in Tokio guarantees thread safety without race conditions or shared mutable state vulnerabilities.
+* **Zero Unsafe in Core Scanners**: Core posture scanners adhere to `#![forbid(unsafe_code)]` wherever feasible, isolating minimal native FFI bindings into audited wrapper crates.
+
+---
+
+## 3. Device Identity & Asymmetric Cryptography (Ed25519)
 
 Every enrolled agent host is identified by an **Ed25519 (RFC 8032)** asymmetric cryptographic keypair:
 * **Private Key Generation**: Generated locally in memory upon initial enrollment. Private keys are never transmitted over the network.
@@ -49,19 +60,19 @@ Every enrolled agent host is identified by an **Ed25519 (RFC 8032)** asymmetric 
   - **Windows**: Protected via DPAPI (`CryptProtectData`) using `CRYPTPROTECT_LOCAL_MACHINE` scope.
   - **Linux**: Stored via Freedesktop SecretService API or `0400` root-restricted filesystem vaults.
   - **macOS**: Stored in the Apple System Keychain with explicit access control lists.
-* **Canonical Header Verification**: All agent requests are signed with canonical headers (`X-NETRA-Device-ID`, `X-NETRA-Timestamp`, `X-NETRA-Nonce`, `X-NETRA-Signature`) and validated against a $\pm 300\text{s}$ timestamp window and sliding nonce cache.
+* **Canonical Header Verification**: All agent requests are signed with canonical headers (`X-NETRA-Device-ID`, `X-NETRA-Timestamp`, `X-NETRA-Nonce`, `X-NETRA-Signature`) and validated against a $\pm 300\text{ s}$ timestamp window and sliding nonce cache.
 
 ---
 
-## 3. Local State & SQLite Security (Encryption & WAL)
+## 4. Local State & SQLite Security (Encryption & WAL)
 
 * **Filesystem DACLs**: Local database files (`agent.db`) are restricted to `0600` permissions (accessible only by the root/SYSTEM supervisor).
 * **Encryption at Rest**: Optional SQLCipher encryption using a key derived from the OS hardware-backed keyring.
-* **Memory Scrubbing**: Sensitive cryptographic buffers in RAM are zeroed immediately after signing operations.
+* **Memory Scrubbing**: Sensitive cryptographic buffers in RAM are zeroed (`zeroize` crate) immediately after signing operations.
 
 ---
 
-## 4. Control Plane & Multi-Tenant Row-Level Security (RLS)
+## 5. Control Plane & Multi-Tenant Row-Level Security (RLS)
 
 Multi-tenant data isolation is enforced at the **PostgreSQL database engine layer**, completely eliminating application-level tenant leakage:
 
@@ -74,9 +85,12 @@ CREATE POLICY tenant_isolation_policy ON findings
   USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
 ```
 
+> [!IMPORTANT]
+> Distributed agents **never receive direct Supabase database credentials**. All communication is mediated through the authenticated Control API.
+
 ---
 
-## 5. Pre-Compiled Capability Whitelist vs. Prohibited Remote Shell
+## 6. Pre-Compiled Capability Whitelist vs. Prohibited Remote Shell
 
 ```mermaid
 flowchart LR
@@ -98,7 +112,7 @@ flowchart LR
 
 ---
 
-## 6. Browser Observation Privacy & Security Guardrails
+## 7. Browser Observation Privacy & Security Guardrails
 
 NETRA enforces strict academic privacy boundaries when correlating web browser processes with network exposures:
 * **Allowed**: Correlating browser PID with destination IP, port 443/80, protocol, and reverse DNS domain.
@@ -106,14 +120,14 @@ NETRA enforces strict academic privacy boundaries when correlating web browser p
 
 ---
 
-## 7. Controlled Remediation Security & Verification Loops
+## 8. Controlled Remediation Security & Verification Loops
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Op as Human Operator
     participant API as Control API
-    participant Agent as NETRA Agent
+    participant Agent as NETRA Agent (Rust)
     participant OS as Native OS Firewall
 
     Op->>API: Approve Remediation (Finding: fnd_01h8...)
@@ -131,15 +145,15 @@ sequenceDiagram
 
 ---
 
-## 8. Supply Chain Integrity, SBOM & TUF Secure Updates
+## 9. Supply Chain Integrity, SBOM & TUF Secure Updates
 
-* **SLSA Level 3 Compliance**: All release binaries are compiled hermetically in GitHub Actions (`CGO_ENABLED=0`).
+* **SLSA Level 3 Compliance**: All release binaries are compiled hermetically in GitHub Actions (`cargo build --release --locked`).
 * **Cryptographic Attestation**: Binaries are signed keylessly with **Cosign** using GitHub OIDC tokens.
 * **TUF Auto-Updates**: Auto-updates follow **The Update Framework (TUF)** with root keys held offline. Update payloads are verified before atomic disk replacement.
 
 ---
 
-## 9. Compromised Agent Threat Model
+## 10. Compromised Agent Threat Model
 
 If an attacker achieves full root/SYSTEM compromise of an endpoint running NETRA:
 1. **Blast Radius Containment**: The attacker gains access only to that specific device's Ed25519 private key.
@@ -149,7 +163,7 @@ If an attacker achieves full root/SYSTEM compromise of an endpoint running NETRA
 
 ---
 
-## 10. Comprehensive STRIDE Threat Model Matrix
+## 11. Comprehensive STRIDE Threat Model Matrix
 
 | STRIDE Category | Specific Threat Scenario | Attack Surface | Impact | Likelihood | Architectural Mitigation | Residual Risk |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |

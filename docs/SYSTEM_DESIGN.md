@@ -2,11 +2,11 @@
 
 > **Overview**
 >
-> This document provides the authoritative runtime behavioral specification of NETRA (Network & Endpoint Threat Reconnaissance Architecture). It details process lifecycles, execution modes, cryptographic handshakes, local SQLite state storage, scanning subsystems, browser exposure awareness, vulnerability correlation, finding reasoning pipelines, and resilient offline synchronization.
+> This document provides the authoritative runtime behavioral specification of NETRA (Network & Endpoint Threat Reconnaissance Architecture). It details process lifecycles, dual runtime modes, cryptographic handshakes, local SQLite state storage, Rust-first scanning subsystems, browser exposure awareness, vulnerability correlation, finding reasoning pipelines, and resilient offline synchronization.
 
 **Status:** Specified / Designed  
-**Audience:** Core Developers, Security Researchers, Systems Engineers, Contributors  
-**Purpose:** Serves as the primary behavioral blueprint for implementing the NETRA runtime core, background daemon, CLI interface, and data processing engines.
+**Audience:** Core Developers, Systems Engineers, Security Researchers, Contributors  
+**Purpose:** Serves as the primary behavioral blueprint for implementing the NETRA Rust runtime core, background supervisor daemon, CLI interface, and data processing engines.
 
 ---
 
@@ -34,21 +34,22 @@
 
 ## 1. Runtime Architectural Foundations
 
-NETRA is engineered as an open-source, academic defensive security framework. At runtime, it prioritizes:
-1. **Zero External Runtime Dependencies**: Single statically compiled binary (`CGO_ENABLED=0`) written in Go with optional native Rust extensions for high-performance syscall probing.
-2. **Local-First Determinism**: Security findings, observations, and telemetry queues are committed to an encrypted local SQLite database before any remote network transmission.
-3. **Outbound-Only Communication**: All network connections to the Control API are outbound over TLS 1.3. Endpoints listen on zero inbound TCP/UDP ports.
-4. **Privacy-Preserving Inspection**: Telemetry focuses on host configuration posture, network reachability, and process socket bindings. User file contents, keystrokes, browser history, and session payloads are strictly out of scope.
+NETRA is engineered as an open-source, academic defensive security framework built with a **Rust-First Systems Architecture**:
+1. **Rust Systems Core**: Single static executable compiled in Rust (using `tokio` async runtime, `rusqlite`, and native syscall bindings). Delivers memory safety, zero garbage collection pauses, sub-millisecond cold starts, and minimal idle memory footprint (under 15MB RSS).
+2. **Justified Python Layer**: Optional Python modules are reserved strictly for high-level exploratory research tooling, offline heuristics, and advisory LLM prompting. Core agent telemetry, schedulers, and network monitoring run 100% in Rust.
+3. **Local-First Determinism**: Security findings, observations, and telemetry queues are committed to an embedded local SQLite database before any remote network transmission.
+4. **Outbound-Only Communication**: All network connections to the Control API are outbound over TLS 1.3. Endpoints listen on zero inbound TCP/UDP ports.
+5. **Privacy-Preserving Inspection**: Telemetry focuses on host configuration posture, network reachability, and process socket bindings. User file contents, keystrokes, browser history, and session payloads are strictly out of scope.
 
 ---
 
 ## 2. Process Models & Dual Execution Modes
 
-NETRA operates in two distinct operational modes using the same unified binary:
+NETRA operates in two distinct operational modes using the same unified Rust binary:
 
 ```mermaid
 flowchart TD
-    Binary["netra (Single Binary Entry Point)"]
+    Binary["netra (Rust Native Binary)"]
     
     Binary --> CheckMode{"Invocation Context"}
     
@@ -58,8 +59,8 @@ flowchart TD
     
     subgraph DaemonMode["Two-Tier Background Service Mode"]
         direction TB
-        Supervisor["Tier 1: OS Supervisor Daemon (Root / SYSTEM)<br/>• Watchdog monitoring & auto-restart<br/>• Keyring access & atomic binary updates<br/>• System-level firewall / route probing"]
-        Worker["Tier 2: Sandboxed Worker Process (Low-Privilege)<br/>• WSS stream gateway connection<br/>• Task execution & rule evaluation<br/>• Local SQLite FIFO buffering"]
+        Supervisor["Tier 1: OS Supervisor Daemon (Rust / SYSTEM / Root)<br/>• Watchdog monitoring & auto-restart<br/>• Keyring access & atomic binary updates<br/>• System-level firewall / route probing"]
+        Worker["Tier 2: Sandboxed Worker Process (Rust / Low-Privilege)<br/>• WSS stream gateway connection<br/>• Task execution & rule evaluation<br/>• Local SQLite FIFO buffering"]
         
         Supervisor <-->|Local Domain Socket / Named Pipe (DACL 0600)| Worker
     end
@@ -75,10 +76,10 @@ When the system boots or the NETRA daemon is initiated, the startup sequence pro
 sequenceDiagram
     autonumber
     participant OS as OS Service Manager
-    participant Sup as NETRA Supervisor
+    participant Sup as NETRA Supervisor (Rust)
     participant Keyring as OS Secure Keyring
     participant DB as Local SQLite DB
-    participant Worker as NETRA Worker
+    participant Worker as NETRA Worker (Rust)
 
     OS->>Sup: Start Service (netra service start)
     Sup->>DB: Open/Migrate netra_local.db (Enable WAL Mode)
@@ -90,7 +91,7 @@ sequenceDiagram
     end
     Sup->>Worker: Fork & Sandbox Worker Process (Apply cgroups / Job Objects)
     Sup->>Worker: Establish Authenticated Local IPC
-    Worker->>Worker: Start In-Memory State & Scan Schedulers
+    Worker->>Worker: Start Async Tokio Event Loop & Scan Schedulers
     Worker-->>Sup: Heartbeat OK (Daemon Operational)
 ```
 
@@ -103,10 +104,18 @@ Every enrolled host possesses a unique **Ed25519 (RFC 8032)** asymmetric cryptog
   - **Windows**: Windows Data Protection API (DPAPI) via `CryptProtectData` with machine/user scope.
   - **Linux**: Kernel Keyring / Freedesktop SecretService API or `0400` root-owned key store.
   - **macOS**: Apple Keychain Services (`SecItemAdd` with access control).
-* **Public Key Representation**: Exported as a 64-character hexadecimal string (`32 bytes`) and transmitted during enrollment to the Control API.
+* **Public Key Representation**: Exported as a 64-character hexadecimal string (32 bytes) and transmitted during enrollment to the Control API.
 * **Canonical Request Signing**: Every outgoing frame or HTTP request includes cryptographic headers:
-  $$\text{Headers: } \text{X-NETRA-Device-ID}, \text{X-NETRA-Timestamp}, \text{X-NETRA-Nonce}, \text{X-NETRA-Signature}$$
-  $$\text{StringToSign} = \text{METHOD} \parallel \text{"\n"} \parallel \text{PATH} \parallel \text{"\n"} \parallel \text{TIMESTAMP} \parallel \text{"\n"} \parallel \text{NONCE} \parallel \text{"\n"} \parallel \text{SHA256}(\text{BODY})$$
+  ```http
+  X-NETRA-Device-ID: dev_01h8a9b2c3d4e5f6
+  X-NETRA-Timestamp: 1776189500
+  X-NETRA-Nonce: a9f8e7d6-c5b4-4a3b-2a1f-0e9d8c7b6a5f
+  X-NETRA-Request-ID: req_1122334455667788
+  X-NETRA-Signature: 6f8b9e... (128-character hex-encoded Ed25519 signature)
+  ```
+  ```text
+  StringToSign = METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + NONCE + "\n" + REQUEST_ID + "\n" + SHA256(BODY)
+  ```
 
 ```mermaid
 stateDiagram-v2
@@ -124,20 +133,20 @@ stateDiagram-v2
 
 ## 5. Agent ↔ Control API Transport Protocol
 
-NETRA agents communicate with the central Control API via a persistent **WebSocket over TLS 1.3 (WSS)** connection, using **Protocol Buffers (Protobuf v3)** for ultra-low serialization overhead:
+NETRA agents communicate with the central Control API via a persistent **WebSocket over TLS 1.3 (WSS)** connection, using **Protocol Buffers (Protobuf v3)** for minimal serialization overhead:
 
 * **Primary Transport**: `wss://api.netra.io/v1/agent/stream`
 * **Fallback Transport**: Authenticated HTTPS Long Polling (`POST /v1/agent/poll`) for restrictive proxies.
 * **Heartbeat Cadence**: Ping/Pong frame sent every 15 seconds. If missed for 45 seconds, the connection is marked `DISCONNECTED` and offline caching begins.
 * **Reconnection Algorithm**: Exponential backoff with jitter:
   $$t_{\text{backoff}} = \min(t_{\text{max}}, t_{\text{base}} \times 2^{\text{attempt}}) \pm \text{jitter}$$
-  where $t_{\text{base}} = 1\text{s}$, $t_{\text{max}} = 300\text{s}$, and $\text{jitter} \in [0, 500\text{ms}]$.
+  where $t_{\text{base}} = 1\text{ s}$, $t_{\text{max}} = 300\text{ s}$, and $\text{jitter} \in [0, 500\text{ ms}]$.
 
 ---
 
 ## 6. Local-First State Architecture (SQLite WAL)
 
-All local operations persist in a local SQLite database (`/var/lib/netra/agent.db` or `%ProgramData%\NETRA\agent.db`).
+All local operations persist in a local SQLite database (`/var/lib/netra/agent.db` on Linux or `%ProgramData%\NETRA\agent.db` on Windows) managed by the Rust `rusqlite` engine:
 
 ### SQLite Configuration & Pruning:
 * **Journal Mode**: `PRAGMA journal_mode = WAL;` (Concurrent readers with single writer).
@@ -207,9 +216,9 @@ stateDiagram-v2
 
 ## 8. Security Scanning Subsystems & OS Sandboxing
 
-Scanning capabilities execute inside isolated goroutines bounded by OS-level resource sandboxes:
+Scanning capabilities execute inside isolated asynchronous Rust tasks bounded by OS-level resource sandboxes:
 
-1. **`SCAN_NETWORK`**: Native OS socket inspection (`GetExtendedTcpTable` on Windows, Netlink `rtnetlink` / `/proc/net/tcp` on Linux, `sysctl KERN_PROC` on macOS). Maps listening ports, bound IPs, and associated process binaries.
+1. **`SCAN_NETWORK`**: Native OS socket inspection (`GetExtendedTcpTable` on Windows via `windows-sys`, Netlink `rtnetlink` / `/proc/net/tcp` on Linux via `nix`, `sysctl KERN_PROC` on macOS). Maps listening ports, bound IPs, and associated process binaries.
 2. **`SCAN_PROCESSES`**: Enumerates running processes, parent PIDs, executable paths, SHA-256 binary hashes, and active CLI parameters.
 3. **`SCAN_FIREWALL`**: Queries kernel packet filters (Windows `INetFwPolicy2`, Linux `nftables`/`iptables`, macOS `pfctl`). Detects disabled profiles or overly permissive `0.0.0.0/0` inbound rules.
 4. **`SCAN_USERS`**: Audits local user accounts, active sudoers, and dormant administrative profiles.
@@ -261,7 +270,7 @@ NETRA provides web exposure awareness by correlating OS socket connections with 
 sequenceDiagram
     autonumber
     participant Browser as Web Browser Process
-    participant SocketProbe as NETRA Socket Observer
+    participant SocketProbe as NETRA Socket Observer (Rust)
     participant DNSEngine as Local DNS Resolver Cache
     participant Corr as Web Exposure Correlator
     participant DB as SQLite / Finding Engine
@@ -288,7 +297,7 @@ NETRA correlates local software inventories against standardized vulnerability f
 ```mermaid
 flowchart LR
     HostApp["Installed Application<br/>(e.g., OpenSSL 1.1.1k)"] --> CPE["CPE 2.3 Normalizer"]
-    CPE --> Matcher["Deterministic Match Engine"]
+    CPE --> Matcher["Deterministic Match Engine (Rust)"]
     CVECache[("Local SQLite CVE Cache<br/>(OSV / NVD Weekly Delta)")] --> Matcher
     Matcher --> Result{"Known CVE Match?"}
     Result -- Yes --> GenFinding["Generate Finding<br/>• CVE-2021-3711 (CVSS 9.8)<br/>• Fixed in: 1.1.1l"]
@@ -315,7 +324,9 @@ flowchart TD
 ```
 
 ### Deterministic Fingerprinting Formula:
-$$\text{Fingerprint} = \text{SHA-256}(\text{TenantID} \parallel \text{DeviceID} \parallel \text{Capability} \parallel \text{RuleID} \parallel \text{ResourceKey})$$
+```text
+Fingerprint = SHA-256(TenantID + "::" + DeviceID + "::" + Capability + "::" + RuleID + "::" + ResourceKey)
+```
 
 ---
 
@@ -384,7 +395,7 @@ stateDiagram-v2
 
 1. **Supervisor Process Watchdog**: The Supervisor daemon continuously monitors the Worker process PID. If the Worker terminates unexpectedly, the Supervisor logs the crash stack, delays for 2 seconds, and restarts the Worker with clean memory bounds.
 2. **Resource Throttling Watchdog**: If the Worker process exceeds 150MB RSS memory or 25% CPU for >60 continuous seconds, the Supervisor triggers a `SIGTERM` followed by a fresh restart.
-3. **Database Corruption Recovery**: If `netra_local.db` experiences header corruption, SQLite WAL recovery is executed automatically. If unrecoverable, the database is rotated to `.corrupt.<timestamp>` and reinitialized from the secure keyring credentials.
+3. **Database Corruption Recovery**: If `netra_local.db` experiences header corruption, SQLite WAL recovery is executed automatically. If unrecoverable, the database is rotated to `.corrupt.[timestamp]` and reinitialized from the secure keyring credentials.
 
 ---
 
@@ -396,7 +407,7 @@ stateDiagram-v2
 sequenceDiagram
     autonumber
     participant CLI as Operator / CLI
-    participant Agent as NETRA Agent Core
+    participant Agent as NETRA Agent Core (Rust)
     participant Keyring as OS Keyring (DPAPI/SecretService)
     participant Gateway as Control API Gateway
     participant Supabase as Supabase / PostgreSQL Core
@@ -410,7 +421,7 @@ sequenceDiagram
     Agent->>Agent: Save Device ID to Local SQLite
     Agent->>Gateway: Establish Persistent WSS Stream
     Gateway-->>Agent: Stream Established (Status: ONLINE)
-    Agent-->>CLI: "Device enrolled and operational!"
+    Agent-->>CLI: Device enrolled and operational!
 ```
 
 ### 17.2 Finding Detection, Evidence Ingestion & Deduplication
@@ -418,8 +429,8 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Scanner as Sandboxed Scanner
-    participant Engine as Finding Engine
+    participant Scanner as Sandboxed Scanner (Rust)
+    participant Engine as Finding Engine (Rust)
     participant SQLite as Local SQLite DB
     participant Gateway as WSS Control Gateway
     participant Postgres as Central DB (PostgreSQL 16)

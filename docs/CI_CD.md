@@ -2,11 +2,11 @@
 
 > **Overview**
 >
-> This document details the continuous integration, reproducible build pipelines, static security analysis, Software Bill of Materials (SBOM) generation, and cryptographic release signing workflows for NETRA (Network & Endpoint Threat Reconnaissance Architecture).
+> This document details the continuous integration, reproducible Rust build pipelines, static security analysis, Software Bill of Materials (SBOM) generation, and cryptographic release signing workflows for NETRA (Network & Endpoint Threat Reconnaissance Architecture).
 
 **Status:** Specified / Designed  
-**Audience:** DevOps Engineers, Security Maintainers, Release Engineers, Academic Auditors  
-**Purpose:** Establishes the automated verification framework ensuring that all released binaries maintain verified supply chain integrity (SLSA Level 3).
+**Audience:** DevOps Engineers, Rust Maintainers, Release Engineers, Academic Auditors  
+**Purpose:** Establishes the automated verification framework ensuring that all released Rust binaries maintain verified supply chain integrity (SLSA Level 3).
 
 ---
 
@@ -14,8 +14,8 @@
 
 1. [CI/CD Philosophy & Supply Chain Posture](#1-cicd-philosophy--supply-chain-posture)
 2. [Pull Request Quality Gates & Automated Scans](#2-pull-request-quality-gates--automated-scans)
-3. [Hermetic Build & Multi-Architecture Compilation](#3-hermetic-build--multi-architecture-compilation)
-4. [Automated Security Scanners (SAST, Secrets, Vulnerabilities)](#4-automated-security-scanners-sast-secrets-vulnerabilities)
+3. [Hermetic Rust Build & Multi-Architecture Compilation](#3-hermetic-rust-build--multi-architecture-compilation)
+4. [Automated Security Scanners (Clippy, Cargo-Audit, CodeQL)](#4-automated-security-scanners-clippy-cargo-audit-codeql)
 5. [Software Bill of Materials (SBOM) Generation](#5-software-bill-of-materials-sbom-generation)
 6. [Cryptographic Artifact Signing (Cosign / Sigstore)](#6-cryptographic-artifact-signing-cosign--sigstore)
 7. [GitHub Actions Release Pipeline Architecture](#7-github-actions-release-pipeline-architecture)
@@ -25,13 +25,13 @@
 
 ## 1. CI/CD Philosophy & Supply Chain Posture
 
-NETRA enforces strict **Supply-chain Levels for Software Artifacts (SLSA Level 3)** compliance:
+NETRA enforces strict **Supply-chain Levels for Software Artifacts (SLSA Level 3)** compliance for its Rust codebase:
 
 ```mermaid
 flowchart LR
     subgraph SupplyChain["SLSA Level 3 Pipeline"]
         direction LR
-        Build["1. Hermetic Build<br/>(CGO_ENABLED=0)"] --> Scan["2. Security Checks<br/>(Govulncheck, CodeQL)"]
+        Build["1. Hermetic Build<br/>(cargo --locked)"] --> Scan["2. Security Checks<br/>(cargo-audit, clippy)"]
         Scan --> SBOM["3. Generate SBOM<br/>(Syft SPDX / CycloneDX)"]
         SBOM --> Sign["4. Sign Artifacts<br/>(Cosign Keyless OIDC)"]
         Sign --> Publish["5. Publish Release<br/>(GitHub Releases + TUF)"]
@@ -48,10 +48,10 @@ Every Pull Request must pass mandatory automated checks before merging into `mai
 flowchart TD
     PR["Pull Request Opened"] --> Matrix{"Automated CI Quality Matrix"}
 
-    Matrix --> L1["1. Linting (golangci-lint, ruff)"]
-    Matrix --> L2["2. Unit & Integration Tests (100% Pass)"]
+    Matrix --> L1["1. Linting (cargo clippy -- -D warnings)"]
+    Matrix --> L2["2. Unit & Integration Tests (cargo test)"]
     Matrix --> L3["3. Secret Scanning (gitleaks)"]
-    Matrix --> L4["4. Vulnerability Audit (govulncheck)"]
+    Matrix --> L4["4. Vulnerability Audit (cargo-audit)"]
     Matrix --> L5["5. SAST Analysis (GitHub CodeQL)"]
 
     L1 --> Merge["All Checks Green ──> Approved for Merge"]
@@ -63,32 +63,35 @@ flowchart TD
 
 ---
 
-## 3. Hermetic Build & Multi-Architecture Compilation
+## 3. Hermetic Rust Build & Multi-Architecture Compilation
 
 ```bash
 # Matrix Build Targets:
-# Linux AMD64
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/netra-linux-amd64 ./cmd/netra
+# Linux AMD64 (Static Musl)
+cargo build --release --locked --target x86_64-unknown-linux-musl
 
-# Linux ARM64
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/netra-linux-arm64 ./cmd/netra
+# Linux ARM64 (Static Musl)
+cargo build --release --locked --target aarch64-unknown-linux-musl
 
 # Windows AMD64
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/netra-windows-amd64.exe ./cmd/netra
+cargo build --release --locked --target x86_64-pc-windows-msvc
 
 # macOS Universal (Apple Silicon + Intel)
-CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/netra-darwin-arm64 ./cmd/netra
-CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/netra-darwin-amd64 ./cmd/netra
-lipo -create -output dist/netra-darwin-universal dist/netra-darwin-arm64 dist/netra-darwin-amd64
+cargo build --release --locked --target aarch64-apple-darwin
+cargo build --release --locked --target x86_64-apple-darwin
+lipo -create -output dist/netra-darwin-universal \
+  target/aarch64-apple-darwin/release/netra \
+  target/x86_64-apple-darwin/release/netra
 ```
 
 ---
 
 ## 4. Automated Security Scanners
 
-1. **`govulncheck`**: Audits transitive Go dependencies against the official Go vulnerability database.
-2. **`gitleaks`**: Scans the git commit history to prevent accidental leakage of private keys or credentials.
-3. **`codeql`**: Performs semantic static application security testing (SAST) to detect injection or logic flaws.
+1. **`cargo-audit`**: Audits transitive Rust dependencies in `Cargo.lock` against the RustSec Advisory Database.
+2. **`cargo-deny`**: Verifies crate licensing compliance (Apache 2.0 / MIT) and prohibits duplicate dependencies.
+3. **`gitleaks`**: Scans the git commit history to prevent accidental leakage of private keys or credentials.
+4. **`codeql`**: Performs semantic static application security testing (SAST) to detect logic flaws.
 
 ---
 
@@ -98,8 +101,8 @@ During each release build, an authoritative SBOM is generated using `syft`:
 
 ```bash
 # Generate SBOM in CycloneDX and SPDX formats
-syft packages dir:dist/ -o cyclonedx-json=dist/netra-sbom.cyclonedx.json
-syft packages dir:dist/ -o spdx-json=dist/netra-sbom.spdx.json
+syft packages dir:target/release/ -o cyclonedx-json=dist/netra-sbom.cyclonedx.json
+syft packages dir:target/release/ -o spdx-json=dist/netra-sbom.spdx.json
 ```
 
 ---
@@ -135,21 +138,21 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          go-version: '1.22'
-      - name: Build Static Binaries
-        run: make release-build
+          targets: x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
+      - name: Build Static Release Binaries
+        run: cargo build --release --locked
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
-          path: dist/
+          path: target/release/
       - name: Sign Binaries with Cosign
         uses: sigstore/cosign-installer@v3
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: target/release/netra*
 ```
 
 ---

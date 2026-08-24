@@ -2,7 +2,7 @@
 
 > **Overview**
 >
-> This document serves as the hands-on operations manual and developer guide for NETRA (Network & Endpoint Threat Reconnaissance Architecture). It covers agent installation, device enrollment, running posture audits, inspecting network topology, scripting CI/CD gates, and diagnostic troubleshooting.
+> This document serves as the hands-on operations manual and developer guide for NETRA (Network & Endpoint Threat Reconnaissance Architecture). It covers Rust agent installation, device enrollment, running posture audits, inspecting network topology, scripting CI/CD gates, and diagnostic troubleshooting.
 
 **Status:** Specified / Designed  
 **Audience:** Developers, DevOps Engineers, Lab Administrators, Students, Security Researchers  
@@ -41,7 +41,7 @@ flowchart TD
 
 ## 2. Prerequisites & System Requirements
 
-* **Windows**: Windows 10/11 (x86_64) or Windows Server 2016+.
+* **Windows**: Windows 10/11 (`x86_64`, `aarch64`) or Windows Server 2016+.
 * **Linux**: Linux Kernel 4.19+ (Ubuntu, Debian, RHEL, Fedora, Arch; systemd recommended).
 * **macOS**: macOS 12 (Monterey) or newer (Apple Silicon M1/M2/M3 or Intel).
 * **Network**: Outbound access over TCP port 443 (HTTPS/WSS). Zero open inbound listening ports required.
@@ -52,12 +52,12 @@ flowchart TD
 
 ### Linux (Ubuntu / Debian / RHEL / Arch)
 ```bash
-# Download and install single static binary
+# Download and install single static Rust binary
 curl -sSL https://get.netra.io | sudo sh
 
 # Verify installation
 netra --version
-# Output: netra version 1.0.0 (linux/amd64)
+# Output: netra version 1.0.0 (x86_64-unknown-linux-musl)
 ```
 
 ### Windows (PowerShell as Administrator)

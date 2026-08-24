@@ -2,10 +2,10 @@
 
 > **Overview**
 >
-> This document translates the product specifications into concrete, testable engineering requirements for NETRA (Network & Endpoint Threat Reconnaissance Architecture). It defines target operating systems, runtime performance budgets, database schemas, cryptographic specifications, scanner implementations, and verification criteria.
+> This document translates the product specifications into concrete, testable engineering requirements for NETRA (Network & Endpoint Threat Reconnaissance Architecture). It defines target operating systems, Rust toolchain requirements, performance budgets, database schemas, cryptographic specifications, scanner implementations, and verification criteria.
 
 **Status:** Specified / Designed  
-**Audience:** Core Developers, System Architects, Quality Assurance Engineers, Security Analysts  
+**Audience:** Core Developers, Rust Systems Architects, Quality Assurance Engineers, Security Analysts  
 **Purpose:** Establishes the authoritative technical constraints and acceptance criteria required for all NETRA subsystem implementations.
 
 ---
@@ -13,8 +13,8 @@
 ## Contents
 
 1. [Supported Operating Systems & Hardware Architectures](#1-supported-operating-systems--hardware-architectures)
-2. [Runtime Modes & Performance Budgets](#2-runtime-modes--performance-budgets)
-3. [Local Storage Specifications (SQLite WAL)](#3-local-storage-specifications-sqlite-wal)
+2. [Rust Systems Toolchain & Performance Budgets](#2-rust-systems-toolchain--performance-budgets)
+3. [Local Storage Specifications (SQLite WAL via `rusqlite`)](#3-local-storage-specifications-sqlite-wal-via-rusqlite)
 4. [Transport & Protocol Specifications](#4-transport--protocol-specifications)
 5. [Cryptographic Identity & Attestation Specifications](#5-cryptographic-identity--attestation-specifications)
 6. [Core Scanner Technical Requirements](#6-core-scanner-technical-requirements)
@@ -23,7 +23,7 @@
 9. [Vulnerability Intelligence & CVE Matching Requirements](#9-vulnerability-intelligence--cve-matching-requirements)
 10. [Controlled Remediation & Rollback Specifications](#10-controlled-remediation--rollback-specifications)
 11. [Central Control Plane & Database Requirements](#11-central-control-plane--database-requirements)
-12. [CLI Interface Technical Specifications](#12-cli-interface-technical-specifications)
+12. [CLI Interface Technical Specifications (Rust `clap`)](#12-cli-interface-technical-specifications-rust-clap)
 13. [Packaging, Distribution & Supply Chain Requirements](#13-packaging-distribution--supply-chain-requirements)
 14. [Automated Verification & Test Matrix](#14-automated-verification--test-matrix)
 
@@ -31,24 +31,32 @@
 
 ## 1. Supported Operating Systems & Hardware Architectures
 
-| OS Family | Minimum Version | Target Architectures | Native Syscall Layer | Key Storage Provider |
+| OS Family | Minimum Version | Target Architectures | Native Syscall Crate / Layer | Key Storage Provider |
 | :--- | :--- | :--- | :--- | :--- |
-| **Windows** | Windows 10 (1809+) / Server 2016+ | `amd64`, `arm64` | `Iphlpapi.dll`, `INetFwPolicy2` COM | Windows DPAPI (`CryptProtectData`) |
-| **Linux** | Kernel 4.19+ (systemd / init) | `amd64`, `arm64` | Netlink (`rtnetlink`), `/proc/net`, `nftables` | SecretService / Kernel Keyring |
-| **macOS** | macOS 12 (Monterey+) | `arm64` (Apple Silicon), `amd64` | `sysctl`, `getifaddrs`, `pfctl` | Apple Keychain Services |
+| **Windows** | Windows 10 (1809+) / Server 2016+ | `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | `windows-sys` (`Iphlpapi.dll`, `INetFwPolicy2`) | Windows DPAPI (`CryptProtectData`) |
+| **Linux** | Kernel 4.19+ (systemd / init) | `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl` | `nix` / `netlink-packet-route` (Netlink, `/proc`) | SecretService / Kernel Keyring |
+| **macOS** | macOS 12 (Monterey+) | `aarch64-apple-darwin`, `x86_64-apple-darwin` | `sysctl`, `nix` (BSD routing sockets, `pfctl`) | Apple Keychain (`security-framework`) |
 
 ---
 
-## 2. Runtime Modes & Performance Budgets
+## 2. Rust Systems Toolchain & Performance Budgets
+
+* **Rust Edition**: Rust 2021 Edition (`rustc 1.78+`).
+* **Core Crate Stack**:
+  - `tokio`: Multi-threaded asynchronous event loop.
+  - `rusqlite`: Embedded SQLite interface with bundled SQLite 3.45+.
+  - `ed25519-dalek` / `ring`: Formally verified asymmetric cryptographic primitives.
+  - `prost` & `tokio-tungstenite`: High-efficiency Protobuf serialization and TLS 1.3 WebSocket streams.
+  - `clap`: Derive-based zero-allocation CLI parser.
 
 ```mermaid
 flowchart LR
     subgraph Budgets["Runtime Resource Ceilings"]
-        B1["Binary Size: under 20MB (Static)"]
-        B2["Idle RAM: under 25MB RSS"]
+        B1["Binary Size: < 20MB (Static)"]
+        B2["Idle RAM: < 15MB RSS"]
         B3["Peak CPU: < 20% Single Core"]
-        B4["Scan Duration: under 500ms (4 Scanners)"]
-        B5["Cold Startup: < 100ms to ready"]
+        B4["Scan Duration: < 500ms (4 Scanners)"]
+        B5["Cold Startup: < 50ms to ready"]
     end
 ```
 
@@ -56,9 +64,9 @@ flowchart LR
 
 ---
 
-## 3. Local Storage Specifications (SQLite WAL)
+## 3. Local Storage Specifications (SQLite WAL via `rusqlite`)
 
-* **Engine**: Embedded SQLite 3.45+ with `CGO_ENABLED=0` Go driver (modernc.org/sqlite).
+* **Engine**: Embedded SQLite 3.45+ compiled statically via `rusqlite`.
 * **Configuration**:
   - `PRAGMA journal_mode = WAL;` (Concurrent reader access with single writer).
   - `PRAGMA synchronous = NORMAL;` (Power-loss durability with NVMe optimization).
@@ -89,7 +97,7 @@ flowchart LR
 ## 6. Core Scanner Technical Requirements
 
 1. **`SCAN_NETWORK`**:
-   - Enumerates all active TCP/UDP listening endpoints.
+   - Enumerates all active TCP/UDP listening endpoints via native syscalls.
    - Extracts local IP, local port, remote IP, remote port, TCP state, and associated PID.
    - Resolves executable binary path and computes SHA-256 hash of the owning process.
 2. **`SCAN_PROCESSES`**:
@@ -122,7 +130,7 @@ flowchart LR
 
 * **Inventory Extractor**: Reads installed packages via `dpkg-query`, `rpm -qa`, and Windows Registry `Uninstall` keys.
 * **Normalization**: Normalizes package names and versions into CPE 2.3 formatted strings.
-* **Matching**: Performs deterministic semantic version range matching against cached NVD/OSV feeds.
+* **Matching**: Performs deterministic semantic version range matching against modular open feeds (OSV / NVD).
 
 ---
 
@@ -143,10 +151,10 @@ flowchart LR
 
 ---
 
-## 12. CLI Interface Technical Specifications
+## 12. CLI Interface Technical Specifications (Rust `clap`)
 
 * **Binary Name**: `netra` (or `netra.exe` on Windows).
-* **Framework**: Go Cobra framework.
+* **Framework**: Rust `clap` (derive API).
 * **Stream Separation**:
   - `stdout`: Pure structured data (JSON when `--json` flag is provided).
   - `stderr`: Human UI elements (spinners, progress bars, colored ANSI tables).
@@ -156,7 +164,7 @@ flowchart LR
 
 ## 13. Packaging, Distribution & Supply Chain Requirements
 
-* **Compilation**: Hermetic builds (`CGO_ENABLED=0`, `-trimpath`, `-ldflags="-s -w"`).
+* **Compilation**: Fully static builds (`cargo build --release --locked`, `target = musl` for Linux).
 * **Provenance**: Syft generates CycloneDX and SPDX SBOMs during release builds.
 * **Signing**: Release binaries signed keylessly via Cosign / Sigstore.
 * **Auto-Updates**: TUF-compliant manifest verification with atomic binary replacement.
@@ -168,9 +176,9 @@ flowchart LR
 ```mermaid
 flowchart TD
     subgraph TestMatrix["Automated Test Matrix"]
-        T1["Unit Tests (Go / Python) — Coverage >= 85%"]
+        T1["Unit Tests (Rust cargo test) — 100% Pass"]
         T2["Integration Tests (PostgreSQL RLS & SQLite) — 100% Pass"]
         T3["E2E VM Tests (Windows 11, Ubuntu 24.04, macOS) — Clean Execution"]
-        T4["Security Scans (CodeQL, Gitleaks, Govulncheck) — Zero Findings"]
+        T4["Security Audits (cargo-audit, cargo-deny, CodeQL) — Zero Findings"]
     end
 ```

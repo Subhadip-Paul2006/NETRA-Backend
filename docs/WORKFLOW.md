@@ -1,135 +1,132 @@
-# NETRA — Open-Source Developer Workflow & Engineering Standards
+# NETRA — Engineering Contribution & Developer Workflow Guide
 
 > **Overview**
 >
-> This document outlines the contribution workflows, Git branching models, conventional commit standards, architectural decision processes, and quality gates governing development on NETRA (Network & Endpoint Threat Reconnaissance Architecture).
+> This document governs the engineering standards, branching models, conventional commit specifications, code review criteria, and Definition of Done (DoD) for developers and researchers contributing to the open-source NETRA codebase.
 
 **Status:** Specified / Designed  
-**Audience:** Core Maintainers, Open-Source Contributors, Reviewers, Security Researchers  
-**Purpose:** Establishes predictable and rigorous software engineering practices to ensure long-term codebase maintainability, security, and stability.
+**Audience:** Core Maintainers, Rust Developers, Open-Source Contributors, Academic Researchers  
+**Purpose:** Establishes uniform engineering discipline, ensuring high code quality, security hygiene, and transparent open-source collaboration.
 
 ---
 
 ## Contents
 
-1. [Open-Source Engineering Philosophy](#1-open-source-engineering-philosophy)
-2. [Branching Strategy & Repository Flow](#2-branching-strategy--repository-flow)
-3. [Feature & Research Development Lifecycle](#3-feature--research-development-lifecycle)
-4. [Conventional Commit Specifications](#4-conventional-commit-specifications)
-5. [Pull Request Lifecycle & Review Gates](#5-pull-request-lifecycle--review-gates)
-6. [Architecture Decision Process (ADRs)](#6-architecture-decision-process-adrs)
-7. [Definition of Ready (DoR) & Definition of Done (DoD)](#7-definition-of-ready-dor--definition-of-done-dod)
-8. [Emergency Security Hotfix Workflow](#8-emergency-security-hotfix-workflow)
+1. [Open-Source Engineering Principles](#1-open-source-engineering-principles)
+2. [Local Rust Development Environment Setup](#2-local-rust-development-environment-setup)
+3. [Branching Strategy (Trunk-Based Development)](#3-branching-strategy-trunk-based-development)
+4. [Conventional Commit Message Standard](#4-conventional-commit-message-standard)
+5. [Code Quality & Linting Standards (`clippy` / `fmt`)](#5-code-quality--linting-standards-clippy--fmt)
+6. [Testing Standards & Coverage Targets](#6-testing-standards--coverage-targets)
+7. [Peer Review & Security Checklist](#7-peer-review--security-checklist)
+8. [Definition of Done (DoD)](#8-definition-of-done-dod)
 
 ---
 
-## 1. Open-Source Engineering Philosophy
+## 1. Open-Source Engineering Principles
 
-NETRA maintains high standards of engineering excellence:
-* **Zero Technical Debt by Default**: No code is merged with disabled linter warnings or failing unit tests.
-* **Strict Type Safety & Hermetic Dependencies**: External dependencies must be audited for permissive licensing (Apache 2.0 / MIT) and security posture.
-* **Architecture-First Implementation**: Code changes must trace back to approved specifications in `docs/SYSTEM_DESIGN.md` or `docs/API.md`.
+NETRA is an academic open-source project prioritizing:
+* **Code Clarity & Explainability**: Complex unsafe syscall blocks must include detailed safety comments explaining why the operation is safe.
+* **Deterministic Behavior**: Avoid non-deterministic algorithms, unseeded random values, or race conditions.
+* **Zero Language Proliferation**: Maintain a clean Rust codebase, avoiding unnecessary third-party runtime bridges.
 
 ---
 
-## 2. Branching Strategy & Repository Flow
+## 2. Local Rust Development Environment Setup
+
+```bash
+# 1. Install Rust via rustup (Rust 2021 Edition, 1.78+)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# 2. Add required cargo components and linters
+rustup component add clippy rustfmt
+
+# 3. Clone repository
+git clone https://github.com/Subhadip-Paul2006/NETRA-Backend.git
+cd NETRA-Backend
+
+# 4. Run automated test suites
+cargo test --workspace
+
+# 5. Verify clippy lints
+cargo clippy --all-targets -- -D warnings
+```
+
+---
+
+## 3. Branching Strategy (Trunk-Based Development)
 
 ```mermaid
 gitGraph
     commit id: "v1.0.0"
-    branch feat/local-sqlite-queue
-    checkout feat/local-sqlite-queue
-    commit id: "feat(db): add WAL mode migrations"
-    commit id: "test(db): add concurrency stress test"
+    branch feat/network-scanner
+    checkout feat/network-scanner
+    commit id: "feat(scanner): add win32 tcp table reader"
+    commit id: "test(scanner): add socket unit tests"
     checkout main
-    merge feat/local-sqlite-queue id: "Merge PR #42"
-    branch fix/dpapi-storage
-    checkout fix/dpapi-storage
-    commit id: "fix(win): handle machine dpapi scope"
+    merge feat/network-scanner id: "PR #12: Merged"
+    branch fix/sqlite-wal
+    checkout fix/sqlite-wal
+    commit id: "fix(sqlite): handle busy timeout on lock"
     checkout main
-    merge fix/dpapi-storage id: "Merge PR #43"
-    commit id: "v1.0.1" tag: "v1.0.1"
+    merge fix/sqlite-wal id: "PR #13: Merged"
+```
+
+* **`main`**: Always releasable, protected branch. Direct pushes to `main` are prohibited in collaborative environments.
+* **Feature Branches**: Named `feat/<feature-name>`, `fix/<bug-name>`, or `docs/<doc-name>`.
+
+---
+
+## 4. Conventional Commit Message Standard
+
+Commits must follow the **Conventional Commits 1.0.0** specification:
+
+$$\text{Format: } \langle\text{type}\rangle(\langle\text{scope}\rangle): \langle\text{description}\rangle$$
+
+### Approved Commit Types:
+* `feat`: A new user-facing capability or scanner.
+* `fix`: A bug fix or security remediation.
+* `docs`: Documentation modifications or architectural updates.
+* `test`: Adding missing unit, integration, or benchmark tests.
+* `refactor`: Code restructuring with zero behavioral changes.
+* `ci`: Changes to CI/CD workflows, cargo configurations, or release scripts.
+
+---
+
+## 5. Code Quality & Linting Standards (`clippy` / `fmt`)
+
+```bash
+# Format Rust code
+cargo fmt --check
+
+# Enforce strict Clippy warnings
+cargo clippy --all-targets -- -D warnings
 ```
 
 ---
 
-## 3. Feature & Research Development Lifecycle
+## 6. Testing Standards & Coverage Targets
 
-```mermaid
-flowchart TD
-    Issue["1. GitHub Issue Tracked"] --> Design["2. Architecture & ADR Reviewed"]
-    Design --> Impl["3. Local Implementation (Go Core)"]
-    Impl --> Tests["4. Unit & Integration Tests Written"]
-    Tests --> PR["5. Pull Request Created"]
-    PR --> CI{"6. Automated CI Quality Gates"}
-    CI -- Pass --> PeerReview["7. Core Maintainer Review"]
-    CI -- Fail --> Impl
-    PeerReview --> Merge["8. Squash & Merge to main"]
-```
+* **Unit Tests**: Mandatory for all parsers, state machines, fingerprint formulas, and rule matchers.
+* **Integration Tests**: Verify database migrations, SQLite WAL concurrency, and mock WSS communication.
+* **Coverage Target**: Minimum **85% code coverage** required for merge approval.
 
 ---
 
-## 4. Conventional Commit Specifications
+## 7. Peer Review & Security Checklist
 
-All commits must adhere to the **Conventional Commits v1.0.0** specification:
-
-```text
-<type>(<scope>): <short summary in present tense>
-
-[optional body explaining WHY, not what]
-
-[optional footer: Fixes #123]
-```
-
-### Supported Types:
-* `feat`: A new capability or scanner.
-* `fix`: A bug fix or defect correction.
-* `sec`: A security hardening improvement or vulnerability patch.
-* `refactor`: Code change that neither fixes a bug nor adds a feature.
-* `perf`: Performance optimization.
-* `test`: Adding or correcting test suites.
-* `docs`: Documentation updates or corrections.
+Every Pull Request review must verify:
+- [ ] No unhandled unwraps/panics in production code paths (`.expect()` / `.unwrap()` replaced with `Result` propagation).
+- [ ] No arbitrary remote shell execution or unsanitized strings passed to OS execution functions.
+- [ ] Memory allocations are bounded (no unbounded vectors reading untrusted network frames).
+- [ ] All new public types and methods have clear Rustdoc documentation.
 
 ---
 
-## 5. Pull Request Lifecycle & Review Gates
+## 8. Definition of Done (DoD)
 
-Every Pull Request must satisfy:
-1. **Issue Link**: Clearly linked to an existing GitHub issue.
-2. **Automated CI Validation**: $100\%$ green status across all automated tests, SAST, and lint checks.
-3. **Test Coverage**: Accompanying unit/integration tests covering new code paths.
-4. **Documentation**: Updated corresponding documents in the `docs/` directory.
-
----
-
-## 6. Architecture Decision Process (ADRs)
-
-Any architectural modification impacting security models, database schemas, protocols, or technology choices must be preceded by an **Architectural Decision Record (ADR)** documented in [docs/ARCHITECTURE.md](./ARCHITECTURE.md).
-
----
-
-## 7. Definition of Ready (DoR) & Definition of Done (DoD)
-
-### Definition of Ready (DoR):
-* Technical requirements documented in [docs/TRD.md](./TRD.md).
-* Threat implications analyzed against [docs/SECURITY_CHECK.md](./SECURITY_CHECK.md).
-* API / CLI interfaces agreed upon in [docs/API.md](./API.md) and [docs/UI_UX.md](./UI_UX.md).
-
-### Definition of Done (DoD):
-* Code implemented, statically typed, and lint-clean.
-* Unit test coverage $\ge 85\%$ on new code paths.
-* Zero newly introduced vulnerabilities (`govulncheck`, `gitleaks`).
-* PR reviewed and approved by a core maintainer.
-
----
-
-## 8. Emergency Security Hotfix Workflow
-
-```mermaid
-flowchart TD
-    Vuln["Critical Vulnerability Identified"] --> HotfixBranch["Create hotfix/security-patch from main"]
-    HotfixBranch --> Patch["Implement Targeted Patch + Regression Test"]
-    Patch --> ExpeditedReview["Expedited Review by Security Lead"]
-    ExpeditedReview --> MergeMain["Merge directly to main"]
-    MergeMain --> TagRelease["Trigger Patch Release Tag (v1.0.1)"]
-```
+A milestone or feature is considered **Done** only when:
+1. All unit and integration tests pass cleanly (`cargo test`).
+2. Clippy reports zero warnings (`cargo clippy -- -D warnings`).
+3. Documentation and architecture cross-references are updated.
+4. Supply chain security scans (`cargo-audit`, `gitleaks`) report zero findings.

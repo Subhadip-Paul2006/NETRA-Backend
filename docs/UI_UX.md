@@ -2,10 +2,10 @@
 
 > **Overview**
 >
-> This document specifies the terminal interaction model, command hierarchy, output stream separation, ANSI color palettes, and machine-readable JSON formatting standards for the `netra` command-line interface.
+> This document specifies the terminal interaction model, command hierarchy, output stream separation, ANSI color palettes, and machine-readable JSON formatting standards for the `netra` command-line interface built in Rust (`clap`).
 
 **Status:** Specified / Designed  
-**Audience:** CLI Developers, Frontend Engineers, DevOps/CI Integrators, Terminal Enthusiasts  
+**Audience:** CLI Developers, Rust Engineers, DevOps/CI Integrators, Terminal Enthusiasts  
 **Purpose:** Establishes predictable Unix-philosophy interaction patterns ensuring seamless use by human operators and automated CI/CD pipelines alike.
 
 ---
@@ -26,7 +26,7 @@
 
 ## 1. CLI Design Philosophy & Unix Principles
 
-NETRA is designed with a **Terminal-First Philosophy**:
+NETRA is designed with a **Terminal-First Philosophy** implemented in zero-allocation Rust:
 * **Rule of Separation**: The CLI clearly separates mechanism from policy and pure data from visual presentation.
 * **Rule of Silence**: When invoked with `--quiet` or piped into another command, the CLI suppresses banners and decorative text.
 * **Rule of Composability**: Standard JSON outputs allow effortless piping into tools like `jq`, Python, or shell scripts.
@@ -67,7 +67,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph Invocation["CLI Invocation (netra findings list)"]
-        Parser["Cobra Parser"] --> Exec["Execution Engine"]
+        Parser["Rust clap Parser"] --> Exec["Rust Execution Engine"]
     end
 
     Exec -->|Human Visual UI (Spinners, Headers, Colors)| Stderr["stderr (Terminal UI)"]
@@ -144,7 +144,7 @@ flowchart TD
 ```text
 $ netra status
 
-NETRA Host Security Agent (v1.0.0-linux-amd64)
+NETRA Host Security Agent (v1.0.0-linux-x86_64)
 ─────────────────────────────────────────────────────────────
   Device ID:       dev_01h8a9b2c3d4e5f6
   Tenant ID:       ten_01h8a1b2c3d4 (Academic Lab)
