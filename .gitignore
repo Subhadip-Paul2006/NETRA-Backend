@@ -1,21 +1,45 @@
-# Binaries and build artifacts
-dist/
-bin/
+# Rust build artifacts and target directories
+target/
+rust/target/
+**/target/
+*.pdb
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
 
+# Python virtual environments and caches
+.venv/
+python/.venv/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+
+# Project-local development directories
+build/
+artifacts/
+cache/
+logs/
+tmp/
+
 # Test artifacts and coverage
 *.out
 *.test
 coverage.txt
+cov/
 
 # Local configuration and sqlite
 *.db
 *.db-wal
 *.db-shm
+.env
+.env.local
 
 # Local agent memory and session logs
 Memory.md
@@ -26,3 +50,4 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+*.bak

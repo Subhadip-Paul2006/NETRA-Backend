@@ -1,0 +1,21 @@
+[package]
+name = "netra-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Command-line interface and diagnostic tool for the NETRA security platform"
+
+[[bin]]
+name = "netra"
+path = "src/main.rs"
+
+[dependencies]
+netra-core = { workspace = true }
+netra-platform = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }

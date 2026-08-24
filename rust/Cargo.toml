@@ -1,0 +1,42 @@
+[workspace]
+members = [
+    "crates/netra-core",
+    "crates/netra-platform",
+    "crates/netra-cli"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Subhadip Paul <subhadippaulff@gmail.com>"]
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/Subhadip-Paul2006/NETRA-Backend"
+homepage = "https://github.com/Subhadip-Paul2006/NETRA-Backend"
+description = "Network & Endpoint Threat Reconnaissance Architecture"
+
+[workspace.dependencies]
+# Internal workspace crates
+netra-core = { path = "crates/netra-core", version = "0.1.0" }
+netra-platform = { path = "crates/netra-platform", version = "0.1.0" }
+
+# Serialization & Configuration
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+toml = "0.8.20"
+
+# Error Handling & Identifiers
+thiserror = "2.0.12"
+uuid = { version = "1.16.1", features = ["v7", "serde"] }
+chrono = { version = "0.4.40", features = ["serde"] }
+
+# Asynchronous Runtime & Platform
+tokio = { version = "1.44.0", features = ["full"] }
+async-trait = "0.1.87"
+
+# CLI & Output Presentation
+clap = { version = "4.5.31", features = ["derive", "env"] }
+
+# Structured Logging & Telemetry
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
