@@ -31,7 +31,8 @@ jobs:
           workspaces: rust
 
       - name: Check Formatting
-        run: cargo fmt --all -- --check
+        run: |
+          cargo fmt --all -- --check || (cargo fmt --all && git --no-pager diff && exit 1)
 
       - name: Run Clippy Linter
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
