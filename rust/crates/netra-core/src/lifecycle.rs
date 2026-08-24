@@ -43,12 +43,14 @@ impl RuntimeCoordinator {
 
     /// Waits asynchronously for an OS termination signal (Ctrl+C).
     pub async fn wait_for_signal(&self) -> Result<()> {
+        let mut shutdown_rx = self.subscribe_shutdown();
+
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 info!("OS Signal received: Ctrl+C (SIGINT)");
                 self.trigger_shutdown();
             }
-            _ = self.subscribe_shutdown().recv() => {
+            _ = shutdown_rx.recv() => {
                 info!("Internal shutdown signal received");
             }
         }
