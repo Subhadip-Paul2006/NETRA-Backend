@@ -2,6 +2,7 @@ use std::process::ExitCode as StdExitCode;
 
 /// Standard exit codes for NETRA CLI executions according to specification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ExitCode {
     /// Command completed successfully without policy violations.
     Success = 0,

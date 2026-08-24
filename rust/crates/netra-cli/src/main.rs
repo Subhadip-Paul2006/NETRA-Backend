@@ -149,11 +149,21 @@ fn execute_command(
             Ok(ExitCode::Success)
         }
 
-        Some(Commands::Findings(_)) => {
+        Some(Commands::Findings(findings_args)) => {
+            let action_desc = match &findings_args.action {
+                Some(args::FindingsSubcommand::List { severity }) => {
+                    format!("list (severity: {:?})", severity)
+                }
+                Some(args::FindingsSubcommand::Show { id }) => {
+                    format!("show finding {}", id)
+                }
+                None => "list (all)".to_string(),
+            };
             presenter.emit_success(
                 "findings",
                 json!({
                     "action": "findings",
+                    "query": action_desc,
                     "total": 0,
                     "findings": [],
                     "status": "SKELETON_READY",
@@ -208,6 +218,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_exit_codes() {
+        assert_eq!(ExitCode::Success.as_i32(), 0);
+        assert_eq!(ExitCode::OperationalError.as_i32(), 1);
+        assert_eq!(ExitCode::PolicyFailure.as_i32(), 2);
+        assert_eq!(ExitCode::InvalidArguments.as_i32(), 3);
+    }
+
+    #[test]
     fn test_cli_parsing_status() {
         let args = CliArgs::try_parse_from(["netra", "status"]).unwrap();
         assert!(matches!(args.command, Some(Commands::Status)));
@@ -230,6 +248,19 @@ mod tests {
             assert_eq!(scan_args.fail_on.as_deref(), Some("HIGH"));
         } else {
             panic!("Expected scan command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parsing_findings() {
+        let args = CliArgs::try_parse_from(["netra", "findings", "show", "fnd_01h8c4"]).unwrap();
+        if let Some(Commands::Findings(f_args)) = args.command {
+            assert!(matches!(
+                f_args.action,
+                Some(args::FindingsSubcommand::Show { ref id }) if id == "fnd_01h8c4"
+            ));
+        } else {
+            panic!("Expected findings command");
         }
     }
 }

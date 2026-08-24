@@ -91,6 +91,7 @@ pub struct FindingsArgs {
 }
 
 #[derive(Debug, Subcommand)]
+#[allow(dead_code)]
 pub enum FindingsSubcommand {
     /// List detected security posture findings.
     List {
