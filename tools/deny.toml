@@ -1,7 +1,7 @@
 # Configuration for cargo-deny to enforce security, license, and dependency hygiene
 [advisories]
 vulnerability = "deny"
-unmaintained = "warn"
+unmaintained = "all"
 yanked = "warn"
 notice = "warn"
 
@@ -16,7 +16,8 @@ allow = [
     "Unicode-DFS-2016",
     "ISC",
     "CC0-1.0",
-    "Zlib"
+    "Zlib",
+    "OpenSSL"
 ]
 confidence-threshold = 0.8
 
