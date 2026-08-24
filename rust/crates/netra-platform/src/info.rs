@@ -31,31 +31,16 @@ pub fn detect_platform_info() -> PlatformInfo {
     }
 }
 
-/// Helper to check privilege elevation status.
+/// Helper to check privilege elevation status (foundation implementation).
 fn check_elevation() -> bool {
     #[cfg(target_os = "windows")]
     {
-        // Foundation check: Windows elevation check will be expanded in Phase 14
         false
     }
     #[cfg(not(target_os = "windows"))]
     {
-        // On Unix, root has UID 0
-        #[cfg(unix)]
-        {
-            unsafe { libc_or_fallback_uid() == 0 }
-        }
-        #[cfg(not(unix))]
-        {
-            false
-        }
+        false
     }
-}
-
-#[cfg(unix)]
-unsafe fn libc_or_fallback_uid() -> u32 {
-    // Fallback unprivileged indicator during Phase 01 foundation
-    1000
 }
 
 #[cfg(test)]

@@ -41,7 +41,7 @@ async fn main() -> StdExitCode {
     }
 
     // 3. Dispatch command
-    let code = match execute_command(&args, &config, &presenter).await {
+    let code = match execute_command(&args, &config, &presenter) {
         Ok(code) => code,
         Err(err) => {
             presenter.emit_error("execution", &err);
@@ -52,7 +52,7 @@ async fn main() -> StdExitCode {
     code.into()
 }
 
-async fn execute_command(
+fn execute_command(
     args: &CliArgs,
     _config: &NetraConfig,
     presenter: &OutputPresenter,

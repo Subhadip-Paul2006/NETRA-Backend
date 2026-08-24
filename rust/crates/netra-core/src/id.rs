@@ -17,7 +17,7 @@ macro_rules! define_id {
             /// Generates a new cryptographically unique identifier using UUIDv7 (time-sortable).
             pub fn new() -> Self {
                 let u = Uuid::now_v7();
-                let clean = u.to_string().replace("-", "");
+                let clean = u.simple().to_string();
                 Self(format!("{}_{}", $prefix, clean))
             }
 
