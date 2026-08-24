@@ -168,9 +168,7 @@ mod tests {
         let err = NetraError::config("Missing required field").with_context("field=server_url");
         assert_eq!(err.kind(), ErrorKind::Config);
         assert_eq!(err.code(), "ERR_CONFIG_INVALID");
-        assert!(err
-            .to_string()
-            .contains("[ERR_CONFIG_INVALID] Missing required field"));
+        assert!(err.to_string().contains("[ERR_CONFIG_INVALID] Missing required field"));
         assert!(err.to_string().contains("field=server_url"));
     }
 
