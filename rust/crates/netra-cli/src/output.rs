@@ -22,13 +22,11 @@ impl OutputPresenter {
                 "command": command,
                 "status": "success",
                 "data": data,
-                "timestamp": chrono::Utc::now().to_rfc3339()
+                "timestamp": chrono::Utc::now().to_rfc3339(),
             });
             println!("{}", serde_json::to_string_pretty(&envelope).unwrap());
-        } else {
-            if !self.quiet {
-                eprintln!("{}", human_summary);
-            }
+        } else if !self.quiet {
+            eprintln!("{}", human_summary);
         }
     }
 
@@ -42,9 +40,9 @@ impl OutputPresenter {
                 "error": {
                     "code": error.code(),
                     "message": error.message(),
-                    "context": error.safe_context()
+                    "context": error.safe_context(),
                 },
-                "timestamp": chrono::Utc::now().to_rfc3339()
+                "timestamp": chrono::Utc::now().to_rfc3339(),
             });
             println!("{}", serde_json::to_string_pretty(&envelope).unwrap());
         } else {

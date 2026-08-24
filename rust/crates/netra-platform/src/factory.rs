@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crate::traits::PlatformAdapter;
 #[cfg(target_os = "linux")]
 use crate::linux::LinuxAdapter;
 #[cfg(target_os = "macos")]
 use crate::macos::MacOSAdapter;
+use crate::traits::PlatformAdapter;
 #[cfg(target_os = "windows")]
 use crate::windows::WindowsAdapter;
 

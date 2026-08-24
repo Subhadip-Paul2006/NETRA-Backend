@@ -1,3 +1,5 @@
+use std::fmt;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -13,8 +15,8 @@ pub enum OsFamily {
     Unknown,
 }
 
-impl std::fmt::Display for OsFamily {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for OsFamily {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             OsFamily::Windows => write!(f, "windows"),
             OsFamily::Linux => write!(f, "linux"),

@@ -1,4 +1,5 @@
 use std::sync::Once;
+
 use tracing_subscriber::{filter::EnvFilter, fmt, prelude::*};
 
 use crate::config::LogConfig;
@@ -12,8 +13,8 @@ pub fn init_logging(config: &LogConfig) -> Result<()> {
     let mut init_result = Ok(());
 
     INIT_LOGGER.call_once(|| {
-        let env_filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new(&config.level));
+        let env_filter =
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.level));
 
         if config.format.eq_ignore_ascii_case("json") {
             let json_layer = fmt::layer()

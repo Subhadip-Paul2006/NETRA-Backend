@@ -1,5 +1,6 @@
-use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
+
+use clap::{Args, Parser, Subcommand};
 
 /// NETRA — Network & Endpoint Threat Reconnaissance Architecture CLI
 #[derive(Debug, Parser)]
@@ -8,7 +9,8 @@ use std::path::PathBuf;
     author = "Subhadip Paul <subhadippaulff@gmail.com>",
     version = "1.0.0-foundation",
     about = "Open-Source Academic Defensive Security Reconnaissance & Engineering CLI",
-    long_about = "NETRA provides deterministic, local-first endpoint posture audits, network reachability reasoning, and safe remediation verification."
+    long_about = "NETRA provides deterministic, local-first endpoint posture audits, \
+                  network reachability reasoning, and safe remediation verification."
 )]
 pub struct CliArgs {
     /// Emit machine-readable JSON output to stdout.

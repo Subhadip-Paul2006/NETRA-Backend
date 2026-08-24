@@ -1,3 +1,5 @@
+use std::process::ExitCode as StdExitCode;
+
 /// Standard exit codes for NETRA CLI executions according to specification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitCode {
@@ -17,8 +19,8 @@ impl ExitCode {
     }
 }
 
-impl From<ExitCode> for std::process::ExitCode {
+impl From<ExitCode> for StdExitCode {
     fn from(code: ExitCode) -> Self {
-        std::process::ExitCode::from(code.as_i32() as u8)
+        StdExitCode::from(code.as_i32() as u8)
     }
 }

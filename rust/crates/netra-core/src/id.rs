@@ -1,6 +1,7 @@
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::str::FromStr;
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::error::{NetraError, Result};
@@ -84,12 +85,36 @@ macro_rules! define_id {
     };
 }
 
-define_id!(DeviceId, "dev", "Globally unique identifier for an enrolled endpoint device host.");
-define_id!(TenantId, "ten", "Unique identifier for an isolated organization or academic tenant.");
-define_id!(TaskId, "tsk", "Unique identifier for an asynchronous scanning or verification task.");
-define_id!(FindingId, "fnd", "Unique identifier for a detected security posture finding.");
-define_id!(ObservationId, "obs", "Unique identifier for an individual raw telemetry observation.");
-define_id!(RemediationId, "rem", "Unique identifier for a controlled remediation execution record.");
+define_id!(
+    DeviceId,
+    "dev",
+    "Globally unique identifier for an enrolled endpoint device host."
+);
+define_id!(
+    TenantId,
+    "ten",
+    "Unique identifier for an isolated organization or academic tenant."
+);
+define_id!(
+    TaskId,
+    "tsk",
+    "Unique identifier for an asynchronous scanning or verification task."
+);
+define_id!(
+    FindingId,
+    "fnd",
+    "Unique identifier for a detected security posture finding."
+);
+define_id!(
+    ObservationId,
+    "obs",
+    "Unique identifier for an individual raw telemetry observation."
+);
+define_id!(
+    RemediationId,
+    "rem",
+    "Unique identifier for a controlled remediation execution record."
+);
 
 #[cfg(test)]
 mod tests {

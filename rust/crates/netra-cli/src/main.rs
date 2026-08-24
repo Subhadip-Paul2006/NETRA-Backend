@@ -1,6 +1,7 @@
+use std::process::ExitCode as StdExitCode;
+
 use clap::Parser;
 use serde_json::json;
-use std::process::ExitCode as StdExitCode;
 
 mod args;
 mod exit_codes;
@@ -75,7 +76,7 @@ async fn execute_command(
                 json!({
                     "version": "1.0.0-foundation",
                     "status": "INITIALIZED",
-                    "platform": platform
+                    "platform": platform,
                 }),
                 &summary,
             );
@@ -84,6 +85,11 @@ async fn execute_command(
 
         Some(Commands::Diagnostics) => {
             let platform = detect_platform_info();
+            let priv_str = if platform.is_elevated {
+                "ELEVATED"
+            } else {
+                "STANDARD_USER"
+            };
             let summary = format!(
                 "NETRA Environment Diagnostics Bundle\n\
                 ─────────────────────────────────────────────────────────────\n\
@@ -93,11 +99,7 @@ async fn execute_command(
                   Privilege:       {}\n\
                   Foundation:      Ready for Phase 02 Execution\n\
                 ─────────────────────────────────────────────────────────────",
-                platform.os_family,
-                platform.os_version,
-                platform.arch,
-                platform.hostname,
-                if platform.is_elevated { "ELEVATED" } else { "STANDARD_USER" }
+                platform.os_family, platform.os_version, platform.arch, platform.hostname, priv_str
             );
 
             presenter.emit_success(
@@ -106,7 +108,7 @@ async fn execute_command(
                     "diagnostics": {
                         "platform": platform,
                         "runtime_state": "HEALTHY",
-                        "phase": "01_FOUNDATION"
+                        "phase": "01_FOUNDATION",
                     }
                 }),
                 &summary,
@@ -115,14 +117,14 @@ async fn execute_command(
         }
 
         Some(Commands::Enroll(enroll_args)) => {
-            presenter.banner(&format!("Initiating device enrollment with token: [REDACTED]"));
+            presenter.banner("Initiating device enrollment with token: [REDACTED]");
             presenter.emit_success(
                 "enroll",
                 json!({
                     "action": "enroll",
                     "token_received": !enroll_args.token.is_empty(),
                     "status": "SKELETON_READY",
-                    "message": "Device enrollment protocol scheduled for Phase 06 implementation"
+                    "message": "Device enrollment protocol scheduled for Phase 06 implementation",
                 }),
                 "✔ Device enrollment CLI interface verified (Phase 01 Foundation).",
             );
@@ -140,7 +142,7 @@ async fn execute_command(
                     "processes": scan_args.processes,
                     "fail_on": scan_args.fail_on,
                     "status": "SKELETON_READY",
-                    "message": "Core security scanning capabilities scheduled for Phase 07 implementation"
+                    "message": "Scanner capabilities scheduled for Phase 07 implementation",
                 }),
                 "✔ Security scanner CLI interface verified (Phase 01 Foundation).",
             );
@@ -155,7 +157,7 @@ async fn execute_command(
                     "total": 0,
                     "findings": [],
                     "status": "SKELETON_READY",
-                    "message": "Finding reasoning engine scheduled for Phase 11 implementation"
+                    "message": "Finding reasoning engine scheduled for Phase 11 implementation",
                 }),
                 "✔ Findings query CLI interface verified (Phase 01 Foundation).",
             );
@@ -170,7 +172,7 @@ async fn execute_command(
                     "nodes": [],
                     "links": [],
                     "status": "SKELETON_READY",
-                    "message": "Topology reachability engine scheduled for Phase 08 implementation"
+                    "message": "Topology engine scheduled for Phase 08 implementation",
                 }),
                 "✔ Topology reachability CLI interface verified (Phase 01 Foundation).",
             );
@@ -183,14 +185,18 @@ async fn execute_command(
                 args::ServiceSubcommand::Stop => "stop",
                 args::ServiceSubcommand::Status => "status",
             };
+            let summary = format!(
+                "✔ Service command '{}' CLI interface verified (Phase 01 Foundation).",
+                action_name
+            );
             presenter.emit_success(
                 "service",
                 json!({
                     "action": action_name,
                     "status": "SKELETON_READY",
-                    "message": "Background supervisor service scheduled for Phase 02 implementation"
+                    "message": "Supervisor service scheduled for Phase 02 implementation",
                 }),
-                &format!("✔ Service command '{}' CLI interface verified (Phase 01 Foundation).", action_name),
+                &summary,
             );
             Ok(ExitCode::Success)
         }
@@ -217,7 +223,8 @@ mod tests {
 
     #[test]
     fn test_cli_parsing_scan_flags() {
-        let args = CliArgs::try_parse_from(["netra", "scan", "--all", "--fail-on", "HIGH"]).unwrap();
+        let args =
+            CliArgs::try_parse_from(["netra", "scan", "--all", "--fail-on", "HIGH"]).unwrap();
         if let Some(Commands::Scan(scan_args)) = args.command {
             assert!(scan_args.all);
             assert_eq!(scan_args.fail_on.as_deref(), Some("HIGH"));
