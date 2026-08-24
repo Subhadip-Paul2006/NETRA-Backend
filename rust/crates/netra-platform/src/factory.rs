@@ -1,26 +1,20 @@
 use std::sync::Arc;
 
-#[cfg(target_os = "linux")]
-use crate::linux::LinuxAdapter;
-#[cfg(target_os = "macos")]
-use crate::macos::MacOSAdapter;
 use crate::traits::PlatformAdapter;
-#[cfg(target_os = "windows")]
-use crate::windows::WindowsAdapter;
 
 /// Factory creating the appropriate native platform adapter for the target OS.
 pub fn create_platform_adapter() -> Arc<dyn PlatformAdapter> {
     #[cfg(target_os = "windows")]
     {
-        Arc::new(WindowsAdapter::new())
+        Arc::new(crate::windows::WindowsAdapter::new())
     }
     #[cfg(target_os = "linux")]
     {
-        Arc::new(LinuxAdapter::new())
+        Arc::new(crate::linux::LinuxAdapter::new())
     }
     #[cfg(target_os = "macos")]
     {
-        Arc::new(MacOSAdapter::new())
+        Arc::new(crate::macos::MacOSAdapter::new())
     }
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     {
