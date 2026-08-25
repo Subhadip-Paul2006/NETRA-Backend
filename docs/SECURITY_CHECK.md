@@ -82,10 +82,12 @@ Every enrolled agent host is identified by an **Ed25519 (RFC 8032)** asymmetric 
 
 ## 4. Local State & Local IPC Security Boundary
 
-### 4.1 Local State (SQLite WAL)
-* **Filesystem DACLs**: Local database files (`agent.db`) are restricted to `0600` permissions (accessible only by the owning supervisor/worker process).
-* **Encryption at Rest**: Optional SQLCipher encryption using a key derived from the OS hardware-backed keyring.
-* **Memory Scrubbing**: Sensitive cryptographic buffers in RAM are zeroed (`zeroize` crate) immediately after signing operations.
+### 4.1 Local State & SQLite Storage Security
+* **Filesystem DACLs & Permissions**: Parent directory is restricted to `0700` permissions; local database files (`agent.db`, `agent.db-wal`, `agent.db-shm`) are restricted to `0600` permissions (accessible exclusively by the executing user SID or daemon owner).
+* **Secret Segregation Boundary**: Asymmetric private keys (Ed25519) and gateway authentication tokens are **strictly prohibited** from SQLite plaintext storage; they are managed exclusively by OS hardware-backed keyrings (DPAPI / SecretService / Keychain in Phase 6).
+* **Safe 6-Step Quarantine Directory Protocol**: When corruption is detected, active handles are closed, database files are isolated into a dedicated `quarantine_<TIMESTAMP>/` directory, and an adjacent `quarantine_meta.json` recording SHA-256 hashes, file sizes, and corruption errors is generated. Silent automated file deletion is strictly prohibited.
+* **Atomic Clean-Shutdown Marker Protocol**: `.runtime_active` tracks process session ownership and prevents multi-instance file conflicts. `.clean_shutdown` is written atomically only after handle closure and checkpoint completion to reliably detect crashes and trigger Tier 2 `PRAGMA quick_check;`.
+* **Memory Scrubbing**: Sensitive cryptographic buffers in RAM are zeroed (`zeroize` crate) immediately after signature operations.
 
 ### 4.2 Local IPC as a Critical Security Boundary
 The Local IPC link between the Supervisor and Worker processes constitutes a high-assurance host trust boundary:

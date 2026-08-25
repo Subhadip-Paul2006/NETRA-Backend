@@ -69,12 +69,22 @@ flowchart LR
 
 ## 3. Local Storage Specifications (SQLite WAL via `rusqlite`)
 
-* **Engine**: Embedded SQLite 3.45+ compiled statically via `rusqlite`.
-* **Configuration**:
-  - `PRAGMA journal_mode = WAL;` (Concurrent reader access with single writer).
-  - `PRAGMA synchronous = NORMAL;` (Power-loss durability with NVMe optimization).
-  - `PRAGMA busy_timeout = 5000;` (Prevents immediate lock errors).
-* **Storage Limit**: Maximum 500MB local footprint. Implements LRU pruning for synchronized observation logs when capacity reaches 90%.
+* **Engine**: Embedded **SQLite 3.48.0** statically compiled via **`rusqlite` (v0.33.0)** (`bundled` feature, zero external C library dependencies).
+* **Configuration & Pragmas**:
+  - `PRAGMA journal_mode = WAL;` (Concurrent readers with single serialized writer handle).
+  - `PRAGMA synchronous = NORMAL;` (SQLite documented semantics: Process crashes safely recover committed WAL transactions. OS crashes/power loss may lose uncheckpointed commits while structural consistency is preserved under ordered write filesystems).
+  - `PRAGMA foreign_keys = ON;` (Relational integrity enforcement).
+  - `PRAGMA busy_timeout = 5000;` (Prevents immediate `SQLITE_BUSY` lock contention).
+  - `PRAGMA temp_store = MEMORY;` (Directs temporary sorting/indexes to RAM).
+  - `PRAGMA cache_size = -2000;` (Caps SQLite page cache at ~2MB per connection handle; process memory bounds are verified in Phase 16).
+* **Storage Quota & Saturation Policy**:
+  - Configurable 500MB default quota (`max_storage_bytes`).
+  - Proactive state-aware pruning at $\ge 85\%$ capacity; emergency 5% reserve at $\ge 95\%$ for critical finding updates; read-only degraded mode at 100% saturation.
+  - **Protection Invariant**: `QUEUED`/`PENDING` observations and `OPEN` findings are strictly protected from routine pruning.
+* **Integrity Verification & Quarantine Directory Protocol**:
+  - Atomic clean shutdown marker protocol: `.runtime_active` stores active PID; `.clean_shutdown` is written atomically only after handle closure and checkpoint completion to detect unclean crashes.
+  - Tiered verification: Fast schema probe on clean startup (target: `<1ms`), `PRAGMA quick_check;` on suspicious restarts (target: `<50ms`). Measured benchmark baselines.
+  - Safe 6-step quarantine: Detaches handles, moves database files into `quarantine_<TIMESTAMP>/`, and records forensic `quarantine_meta.json` with SHA-256 hashes without data destruction.
 
 ---
 

@@ -196,4 +196,16 @@ flowchart TD
 | **Shutdown Idempotency** | Multiple shutdown triggers execute safely as no-ops | Multiple shutdown triggers execute safely as no-ops | Multiple shutdown triggers execute safely as no-ops |
 | **Signal-Lifecycle Isolation** | Pure signal notification $\to$ internal broadcast channel | Pure signal notification $\to$ internal broadcast channel | Pure signal notification $\to$ internal broadcast channel |
 
+---
+
+## 10. Native Storage Paths & Access Control Matrix
+
+| Environment / Mode | Windows | Linux | macOS |
+| :--- | :--- | :--- | :--- |
+| **Standard User CLI Data Path** | `%LOCALAPPDATA%\NETRA\agent.db` | `~/.local/share/netra/agent.db` | `~/Library/Application Support/NETRA/agent.db` |
+| **System Service / Daemon Path** | `%ProgramData%\NETRA\data\agent.db` | `/var/lib/netra/agent.db` | `/Library/Application Support/NETRA/agent.db` |
+| **Directory DACL / Permissions** | Owner SID + SYSTEM FullControl | Directory mode `0700` (`rwx------`) | Directory mode `0700` (`rwx------`) |
+| **Forensic Quarantine Directory** | `%LOCALAPPDATA%\NETRA\quarantine_<TIMESTAMP>\` | `/var/lib/netra/quarantine_<TIMESTAMP>/` | `~/Library/Application Support/NETRA/quarantine_<TIMESTAMP>/` |
+| **Clean Shutdown Marker Path** | `%LOCALAPPDATA%\NETRA\.clean_shutdown` | `/var/lib/netra/.clean_shutdown` | `~/Library/Application Support/NETRA/.clean_shutdown` |
+
 

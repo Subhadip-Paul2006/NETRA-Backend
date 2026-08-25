@@ -130,24 +130,28 @@ flowchart TD
 
 ## 6. Phase 2: Rust Core Runtime, Lifecycle & Process Isolation
 
-* **Status**: `IN PROGRESS`
+* **Status**: `COMPLETED`
 * **Sub-phase Breakdown**:
   - **Phase 2.1 — Core Crate Boundaries & Interfaces (`COMPLETED`)**: Workspace structure (`netra-core`, `netra-platform`, `netra-cli`), unidirectional dependency invariants, platform abstraction traits.
-  - **Phase 2.2 — Runtime Lifecycle & OS Initialization (`COMPLETED`)**: Deterministic `RuntimeState` state machine, pluggable `ComponentLifecycle` contracts, `RuntimeCoordinator` in-process startup/teardown, timeout guards, and automated test suite (49 passed across workspace). Note: `DEGRADED -> RUNNING` is structurally supported in the state model; active background health monitoring and automated recovery loops are scoped to Phase 2.3 and Phase 16.
-  - **Phase 2.3 — Privilege Separation, Process Isolation & Local IPC Foundation (`NEXT`)**: Two-tier process model (least-privilege supervisor + low-privilege worker), configurable cgroups v2 / Job Objects / setrlimit resource bounds, authenticated local IPC (`0600` DACLs + dual-gated peer PID & token handshake), sub-2-second auto-restart crash watchdog, and 5-crash circuit breaker.
-* **Exit Gate**: Worker terminates and restarts within 2 seconds upon crash; memory bounded at configured ceiling (100MB default); zero unauthorized IPC connections permitted.
+  - **Phase 2.2 — Runtime Lifecycle & OS Initialization (`COMPLETED`)**: Deterministic `RuntimeState` state machine, pluggable `ComponentLifecycle` contracts, `RuntimeCoordinator` in-process startup/teardown, timeout guards, and automated test suite.
+  - **Phase 2.3 — Privilege Separation, Process Isolation & Local IPC Foundation (`COMPLETED`)**: Two-tier process model (least-privilege supervisor + low-privilege worker), configurable cgroups v2 / Job Objects / setrlimit resource bounds, authenticated local IPC (`0600` DACLs + dual-gated peer PID & token handshake), sub-2-second auto-restart crash watchdog, and 5-crash circuit breaker.
+* **Exit Gate**: Worker terminates and restarts within 2 seconds upon crash; memory bounded at configured ceiling (100MB default); zero unauthorized IPC connections permitted. Verified 100% across Windows, Ubuntu, and macOS.
 
 ---
 
 ## 7. Phase 3: Local SQLite Engine & State Management (`rusqlite`)
 
-* **Status**: `PLANNED`
-* **Goal**: Build the local-first SQLite persistence layer in Rust using `rusqlite`.
+* **Status**: `PROPOSED / ARCHITECTURAL REVIEW`
+* **Goal**: Build the local-first SQLite persistence layer in Rust using `rusqlite` (v0.33.0, bundled SQLite 3.48.0).
 * **Scope**:
-  - Embedded migrations (`LOCAL_CONFIG`, `OBSERVATION_QUEUE`, `LOCAL_FINDINGS`).
-  - Enable WAL mode and transactional read/write isolation.
-  - Automatic LRU queue pruning at 500MB storage ceiling.
-* **Exit Gate**: 10,000 concurrent insert/select operations execute without database lock timeouts.
+  - Embedded transactional migrations (`_netra_migrations`, `local_config`, `observation_queue`, `local_findings`).
+  - Enable WAL mode with nuanced durability semantics (`synchronous = NORMAL` for high-throughput buffering, application-crash safety, structural consistency).
+  - Segregated read-write connection handle model adapted for Tokio via `spawn_blocking`.
+  - Atomic clean-shutdown marker protocol (`.clean_shutdown` / `.runtime_active`) for multi-instance safety and unclean restart detection.
+  - Bounded shutdown checkpointing with external Tokio timeout and passive/restart fallback.
+  - State-aware queue pruning with configurable storage quota (500MB default), strictly preserving `QUEUED` observations and `OPEN` findings.
+  - Safe cross-platform quarantine directory protocol (`quarantine_<timestamp>/` + `quarantine_meta.json`).
+* **Exit Gate**: 10,000 concurrent insert/select operations execute without database lock timeouts or panics; corrupted files safely quarantined without data destruction.
 
 ---
 

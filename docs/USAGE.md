@@ -188,3 +188,23 @@ flowchart TD
     D4 -- Success --> D6{"Check Local SQLite Database"}
     D6 --> D7["Review /var/log/netra/agent.log"]
 ```
+
+---
+
+## 11. Storage Diagnostics, Quota & Quarantine Management
+
+```bash
+# Check local SQLite storage health and quota utilization
+netra storage status
+
+# Run deep Tier 3 integrity verification
+netra diagnostics --deep-storage-check
+
+# Inspect quarantined corrupted databases (forensic preservation directory)
+ls -la /var/lib/netra/quarantine_*/
+cat /var/lib/netra/quarantine_*/quarantine_meta.json
+
+# Explicit operator recovery (creates clean replacement without deleting quarantine archive)
+netra storage recover --force-reinit
+```
+

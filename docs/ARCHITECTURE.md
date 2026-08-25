@@ -287,10 +287,17 @@ flowchart TD
 
 ## 6. Local-First Data Architecture (SQLite Core)
 
-To guarantee resilience during network partitions, the agent stores configuration, evidence, and pending sync batches locally in SQLite:
+### Foundational Architectural Invariant
+Future NETRA security observations, posture findings, and configuration states that require durable local persistence must pass through the local storage boundary before external synchronization:
 
-* **WAL Mode**: `PRAGMA journal_mode = WAL;` enables concurrent reads by the CLI while the worker daemon writes.
-* **Bounded FIFO Queue**: If the host is offline, observations are queued locally up to 500MB, pruning resolved or low-priority items first.
+* **Embedded SQLite Engine**: Statically embeds **SQLite 3.48.0** via **`rusqlite` (v0.33.0)** (`bundled` feature) with zero external C library dependencies.
+* **WAL Mode & Rigorous Durability Semantics**: `PRAGMA journal_mode = WAL;` and `PRAGMA synchronous = NORMAL;`. Under SQLite's documented guarantees: Process crashes recover all committed WAL transactions. OS crashes or sudden power loss may lose recent commits since the last sync/checkpoint while structural b-tree consistency is maintained. Durability is weaker than `FULL` in exchange for eliminating SSD write amplification.
+* **Segregated Handle Model**: Segregated writer and reader connection handles wrapped in `netra-core::storage::DatabaseEngine` and dispatched onto Tokio's blocking thread pool.
+* **Storage Memory Budget**: SQLite page cache is capped at ~2MB per connection handle (`PRAGMA cache_size = -2000`). Whole-process memory benchmarking and validation under load are assigned to Phase 16.
+* **Atomic Clean-Shutdown Marker Protocol**: `.runtime_active` tracks process session ownership; `.clean_shutdown` is written atomically only after handle closure and checkpoint completion, ensuring crash detection and multi-instance safety.
+* **Bounded Shutdown Checkpointing**: WAL checkpoints during shutdown are wrapped in an external 1,000ms Tokio timeout with passive fallback, ensuring database teardown never blocks the global 5,000ms shutdown ceiling.
+* **State-Aware Retention & Saturation Controls**: Configurable 500MB storage ceiling. Proactively prunes acknowledged records at 85% capacity, reserves the top 5% for critical finding updates at 95%, and halts non-critical enqueues in read-only degraded mode at 100% saturation while strictly protecting `QUEUED` observations and `OPEN` findings.
+* **Quarantine Directory Protocol**: If corruption is detected, all connections are closed and database files are safely isolated into a dedicated `quarantine_<TIMESTAMP>/` directory with SHA-256 hashes recorded in `quarantine_meta.json` without automated destructive wiping.
 
 ---
 

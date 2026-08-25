@@ -35,6 +35,7 @@ pub mod ipc;
 pub mod lifecycle;
 pub mod logging;
 pub mod runtime;
+pub mod storage;
 pub mod supervisor;
 pub mod worker;
 
@@ -51,6 +52,11 @@ pub use logging::init_logging;
 pub use runtime::{
     ArcComponent, ComponentHealth, ComponentLifecycle, RuntimeCoordinator, RuntimeState,
     DEFAULT_SHUTDOWN_TIMEOUT_MS,
+};
+pub use storage::{
+    ConfigEntry, ConfigRepository, DatabaseEngine, FindingEntry, FindingSeverity, FindingStatus,
+    FindingsRepository, MigrationEngine, ObservationEntry, ObservationQueueRepository,
+    ObservationStatus, StorageError, StorageQuotaManager, StorageResult, StorageState,
 };
 pub use supervisor::{
     CrashAction, CrashTracker, SupervisorEngine, SupervisorState, WatchdogPolicy,

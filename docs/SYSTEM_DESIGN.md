@@ -205,20 +205,23 @@ NETRA agents communicate with the central Control API via a persistent **WebSock
 
 ## 6. Local-First State Architecture (SQLite WAL)
 
-All local operations persist in a local SQLite database (`/var/lib/netra/agent.db` on Linux or `%ProgramData%\NETRA\agent.db` on Windows) managed by the Rust `rusqlite` engine:
+Future NETRA security observations, posture findings, and configuration states requiring durable local persistence are committed to an embedded local SQLite database (`/var/lib/netra/agent.db` on Linux, `%ProgramData%\NETRA\data\agent.db` on Windows Service, or user data directories for CLI) managed by the Rust `rusqlite` engine (v0.33.0, bundled SQLite 3.48.0):
 
-### SQLite Configuration & Pruning:
-* **Journal Mode**: `PRAGMA journal_mode = WAL;` (Concurrent readers with single writer).
-* **Synchronous**: `PRAGMA synchronous = NORMAL;` (Crash safety with optimal SSD/NVMe throughput).
-* **Encryption at Rest**: Optional SQLCipher integration with DPAPI/Keyring-derived key.
-* **Storage Cap**: Strict 500MB database limit with LRU pruning of resolved findings and synced raw observations.
+### SQLite Configuration, Durability & Retention:
+* **Journal Mode**: `PRAGMA journal_mode = WAL;` (Concurrent readers with single serialized writer handle).
+* **Synchronous & Durability**: `PRAGMA synchronous = NORMAL;` (Under SQLite's documented semantics: Process crashes safely recover all committed WAL transactions without tearing. OS crashes or sudden power loss may lose recent transactions committed since the last sync/checkpoint while structural b-tree consistency is maintained under POSIX filesystem write-ordering).
+* **Foreign Keys**: `PRAGMA foreign_keys = ON;` (Relational integrity enforcement).
+* **Busy Timeout**: `PRAGMA busy_timeout = 5000;` (Prevents immediate lock errors).
+* **Storage Memory Budget**: `PRAGMA cache_size = -2000;` (Caps SQLite page cache at ~2MB per connection handle; process-wide memory benchmarking is verified in Phase 16).
+* **Storage Quota & Saturation Controls**: Configurable 500MB database ceiling (`max_storage_bytes`). State-aware pruning cleans acknowledged records at 85% capacity, reserves the top 5% for critical finding updates at 95%, and enters read-only degraded mode at 100% saturation while strictly protecting `QUEUED` observations and `OPEN` findings.
 
 ```mermaid
 erDiagram
     LOCAL_CONFIG {
-        string key PK
-        string value
-        datetime updated_at
+        string key PK "Local storage & runtime setting key"
+        string value_json "Serialized JSON value"
+        string value_type "Type discriminator"
+        datetime updated_at "ISO 8601 UTC"
     }
     OBSERVATION_QUEUE {
         string id PK
@@ -226,15 +229,19 @@ erDiagram
         text payload_json
         string sha256_hash
         string status
-        datetime created_at
         integer retry_count
+        string source_finding_id
+        datetime created_at
+        datetime updated_at
     }
     LOCAL_FINDINGS {
         string fingerprint PK
         string rule_id
         string severity
         string status
-        text evidence_json
+        string title
+        text evidence_summary_json
+        integer occurrence_count
         datetime first_seen
         datetime last_seen
     }
@@ -247,8 +254,8 @@ erDiagram
         integer duration_ms
     }
 
-    LOCAL_FINDINGS ||--o{ OBSERVATION_QUEUE : backs
-    SCAN_HISTORY ||--o{ LOCAL_FINDINGS : generates
+    LOCAL_FINDINGS ..o{ OBSERVATION_QUEUE : "provenance reference (application-level)"
+    SCAN_HISTORY ..o{ LOCAL_FINDINGS : "generates (application-level)"
 ```
 
 ---
@@ -460,7 +467,19 @@ stateDiagram-v2
    - **Circuit Breaker**: If $\ge 5$ consecutive crashes happen in a 300-second window, auto-restart is suspended, and the supervisor transitions to `SupervisorState::Failed` to prevent host resource thrashing.
    - **Stable Reset**: 60 seconds of continuous stable execution resets the crash counter.
 2. **Resource Throttling Watchdog**: If the Worker process exceeds configured memory ceilings or CPU quotas for $>60$ continuous seconds, the Supervisor triggers a `ShutdownNotice` followed by graceful restart.
-3. **Database Corruption Recovery**: If `netra_local.db` experiences header corruption, SQLite WAL recovery is executed automatically. If unrecoverable, the database is rotated to `.corrupt.[timestamp]` and reinitialized.
+3. **Database Integrity, Atomic Marker Protocol & Quarantine Directory Sequence**:
+   - **Atomic Marker Protocol**: 
+     - `.runtime_active` records the active process PID, session UUIDv7, and timestamp (mode `0600`). Prevents concurrent multi-instance conflicts.
+     - Stale sessions (dead PID in `.runtime_active` or missing `.clean_shutdown`) flag an unclean restart, triggering Tier 2 `PRAGMA quick_check;`.
+     - `.clean_shutdown` is written **only after** all write transactions finish, checkpoints complete/timeout, and SQLite connection handles are fully closed. It is finalized via atomic temp write (`.clean_shutdown.tmp`) and rename (`rename`).
+   - **Tiered Verification**: Fast schema probe on clean startup (target: `<1ms`), `PRAGMA quick_check;` on suspicious restarts (target: `<50ms`), and full diagnostics via `netra diagnostics`. Timings are measured benchmark baselines.
+   - **Safe 6-Step Quarantine Directory Sequence**:
+     1. Freeze incoming write transactions.
+     2. Explicitly close all active SQLite connection handles and release OS file locks.
+     3. Create a dedicated directory: `quarantine_<UTC_TIMESTAMP>/` (mode `0700`).
+     4. Deterministically move/copy `agent.db`, `agent.db-wal`, and `agent.db-shm` into the quarantine directory.
+     5. Generate `quarantine_meta.json` inside the directory recording SHA-256 hashes, file sizes, UTC timestamp, and the corruption error string.
+     6. Transition storage engine to safe `StorageState::Degraded(Quarantined)` and notify `RuntimeCoordinator` without destructive auto-wiping. Replacement database creation requires explicit operator action (`netra storage recover --force-reinit`).
 
 ---
 
