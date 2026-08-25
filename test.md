@@ -140,6 +140,24 @@ Flow summary:
 
 ---
 
+## Diagram (Mermaid)
+
+Below is a compact mermaid flowchart that captures the core workflow. You can render this in GitHub (supports mermaid), in VS Code, or export via mermaid-cli.
+
+```mermaid
+flowchart LR
+  F[Forecasting (ML)] --> R[Reconnaissance]
+  R --> I[Initial Access]
+  I --> D[Discovery]
+  D --> L[Lateral Movement]
+  L --> A[Analysis & Mapping]
+  A --> F
+  classDef core fill:#f9f,stroke:#333,stroke-width:1px;
+  class F,R,I,D,L,A core
+```
+
+---
+
 ## Core Idea
 
 Use past data + current activity as input to an ML-based forecasting layer to predict the likely next steps in an attack chain. This enables proactive detection and mitigation by anticipating attacker behavior instead of only reacting to observed compromises.
