@@ -66,6 +66,57 @@ flowchart TD
     end
 ```
 
+### Runtime Lifecycle & Conceptual Boundary
+
+The NETRA architecture establishes a strictly unidirectional conceptual hierarchy:
+
+$$\mathbf{netra\text{-}cli} \;\longrightarrow\; \mathbf{netra\text{-}core} \;\longrightarrow\; \mathbf{runtime\;lifecycle} \;\longrightarrow\; \mathbf{platform\;abstraction}$$
+
+* **`netra-core::runtime` Ownership**: Owns the canonical `RuntimeState` lifecycle state machine, pluggable `ComponentLifecycle` trait contracts, and `RuntimeCoordinator` orchestrating serial startup, health monitoring, and reverse graceful teardown.
+* **Decoupled Consumers**: Both interactive CLI commands (`netra-cli`) and background service daemons (Phase 2.3) instantiate and coordinate components through `netra-core::runtime` without presentation logic or OS syscall coupling.
+
+```mermaid
+stateDiagram-v2
+    [*] --> CREATED: Runtime Coordinator Initialized
+    CREATED --> INITIALIZING: Component Pre-flight Checks
+    INITIALIZING --> READY: All Critical Components Initialized
+    INITIALIZING --> FAILED: Critical Component Initialization Failure
+    
+    READY --> RUNNING: Active Loops Started
+    Running: RUNNING (Operational)
+    Running --> DEGRADED: Non-Critical Component Failure
+    DEGRADED --> RUNNING: State Model Transition (Auto-recovery in Phase 2.3)
+    
+    Running --> STOPPING: Shutdown Signal Received
+    DEGRADED --> STOPPING: Shutdown Signal Received
+    Running --> FAILED: Critical Unrecoverable Error
+    
+    STOPPING --> STOPPED: Reverse Teardown Complete (5s Guard)
+    FAILED --> STOPPING: Cleanup
+    STOPPED --> [*]
+```
+
+#### State Model Capability vs. Implemented Runtime Behavior
+
+* **State Model Capability**: The core state transition matrix supports `DEGRADED -> RUNNING`, `RUNNING -> DEGRADED`, and `DEGRADED -> STOPPING` to accommodate self-healing workflows without breaking state changes.
+* **Implemented Phase 2.2 Behavior**: Phase 2.2 provides the core lifecycle coordination, deterministic startup/shutdown ordering, and on-demand health queries (`coordinator.health().await`). Continuous background health polling and automated `DEGRADED -> RUNNING` recovery loops are deferred to the Phase 2.3 Supervisor Daemon and Phase 16 Watchdog.
+
+#### Graceful Shutdown Semantics & Teardown Timeout Guard
+
+To ensure high availability and prevent process hangs during shutdown or restarts, the `RuntimeCoordinator` implements bounded teardown semantics:
+
+1. **Default Shutdown Timeout**: `5000ms` (`DEFAULT_SHUTDOWN_TIMEOUT_MS = 5000`). Configurable via `NetraConfig.runtime.shutdown_timeout_ms`, `RuntimeCoordinator::with_timeout(ms)`, `RuntimeCoordinator::from_config(&config)`, or the `NETRA_SHUTDOWN_TIMEOUT_MS` environment variable.
+2. **Purpose**: Prevents slow, deadlocked, or unresponsive subsystems (e.g. unclosed sockets, hanging IPC channels, long-running scan routines) from indefinitely delaying service termination or OS reboots.
+3. **Scope**: Applied individually per component during its asynchronous `ComponentLifecycle::stop()` teardown phase.
+4. **Behavior When Exceeded**: If a component does not finish `stop()` within the timeout ceiling, `tokio::time::timeout` cancels the future. The coordinator logs a structured warning and continues tearing down subsequent components in reverse registration order without aborting or crashing.
+5. **Logging**: Structured warning log emitted:
+   ```text
+   WARN Component '<component_name>' timed out during graceful shutdown (<timeout_ms>ms). Forcing teardown.
+   ```
+6. **Forced Termination Behavior**: Teardown for the unresponsive component is abandoned. All remaining components continue to execute their graceful shutdown, and the coordinator safely arrives at `RuntimeState::Stopped` (or preserves `RuntimeState::Failed` if invoked during critical failure).
+7. **Idempotency**: Repeated invocations of `coordinator.shutdown()` execute safely as clean no-ops.
+8. **Cross-Platform Signals & Lifecycle Isolation**: Asynchronous signal listeners (`wait_for_shutdown()`) intercept `SIGINT` (Ctrl+C) and `SIGTERM` on Unix (Linux/macOS) and `CTRL_C_EVENT` / `CTRL_BREAK_EVENT` on Windows. Signal handlers perform zero direct state manipulation; they only dispatch to the internal broadcast channel (`trigger_shutdown()`), preserving clean isolation from the core lifecycle logic.
+
 ---
 
 ## 3. System Startup, Initialization & Identity Bootstrap

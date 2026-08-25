@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use netra_core::error::Result;
+use netra_core::runtime::ComponentLifecycle;
 
 use crate::info::detect_platform_info;
 use crate::traits::{PlatformAdapter, PlatformInfo};
@@ -11,6 +12,17 @@ pub struct LinuxAdapter;
 impl LinuxAdapter {
     pub fn new() -> Self {
         Self
+    }
+}
+
+#[async_trait]
+impl ComponentLifecycle for LinuxAdapter {
+    fn name(&self) -> &'static str {
+        "platform::linux"
+    }
+
+    async fn initialize(&self) -> Result<()> {
+        self.self_test().await
     }
 }
 

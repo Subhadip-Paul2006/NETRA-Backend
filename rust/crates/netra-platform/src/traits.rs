@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use netra_core::error::Result;
+use netra_core::runtime::ComponentLifecycle;
 
 /// Normalized operating system family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -42,8 +43,10 @@ pub struct PlatformInfo {
 }
 
 /// Core OS platform adapter trait defining cross-platform behavioral contract.
+///
+/// Inherits [`ComponentLifecycle`] for seamless integration into the [`netra_core::runtime::RuntimeCoordinator`].
 #[async_trait]
-pub trait PlatformAdapter: Send + Sync {
+pub trait PlatformAdapter: ComponentLifecycle + Send + Sync {
     /// Returns static platform details and capability envelope.
     async fn get_platform_info(&self) -> Result<PlatformInfo>;
 

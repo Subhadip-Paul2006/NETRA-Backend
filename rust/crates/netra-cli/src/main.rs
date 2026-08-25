@@ -1,3 +1,21 @@
+//! # NETRA CLI (`netra-cli`)
+//!
+//! **Command-Line Interface & Diagnostic Tool for NETRA**
+//!
+//! `netra-cli` provides the user-facing CLI binary (`netra`) implementing the Unix
+//! philosophy of separation of concerns:
+//!
+//! - **Standard Output (`stdout`)**: Exclusively reserved for machine-readable JSON data.
+//! - **Standard Error (`stderr`)**: Reserved for human diagnostic output, ANSI formatting, and progress banners.
+//! - **Standard Exit Codes**: `0` (Success), `1` (Operational Error), `2` (Policy Violation), `3` (Fatal Error).
+//!
+//! ## Architectural Invariants & Crate Boundaries
+//!
+//! 1. **Dependency Direction**: `netra-cli` consumes public APIs from `netra-core` and `netra-platform`.
+//!    Neither `netra-core` nor `netra-platform` depends on `netra-cli`.
+//! 2. **Interface Separation**: `netra-cli` contains no OS-specific security logic, no SQLite persistence
+//!    logic, and no remediation execution code.
+
 use std::process::ExitCode as StdExitCode;
 
 use clap::Parser;
@@ -11,7 +29,8 @@ use args::{CliArgs, Commands};
 use exit_codes::ExitCode;
 use netra_core::config::NetraConfig;
 use netra_core::logging::init_logging;
-use netra_platform::detect_platform_info;
+use netra_core::runtime::RuntimeCoordinator;
+use netra_platform::{create_platform_adapter, detect_platform_info};
 use output::OutputPresenter;
 
 #[tokio::main]
@@ -40,8 +59,27 @@ async fn main() -> StdExitCode {
         return ExitCode::OperationalError.into();
     }
 
-    // 3. Dispatch command
-    let code = match execute_command(&args, &config, &presenter) {
+    // 3. Initialize RuntimeCoordinator and platform adapter
+    let coordinator = RuntimeCoordinator::new();
+    let platform_adapter = create_platform_adapter();
+
+    if let Err(err) = coordinator.register_component(platform_adapter).await {
+        presenter.emit_error("runtime_registration", &err);
+        return ExitCode::OperationalError.into();
+    }
+
+    if let Err(err) = coordinator.initialize().await {
+        presenter.emit_error("runtime_init", &err);
+        return ExitCode::OperationalError.into();
+    }
+
+    if let Err(err) = coordinator.start().await {
+        presenter.emit_error("runtime_start", &err);
+        return ExitCode::OperationalError.into();
+    }
+
+    // 4. Dispatch command
+    let code = match execute_command(&args, &config, &coordinator, &presenter).await {
         Ok(code) => code,
         Err(err) => {
             presenter.emit_error("execution", &err);
@@ -49,33 +87,41 @@ async fn main() -> StdExitCode {
         }
     };
 
+    // 5. Graceful shutdown of runtime
+    let _ = coordinator.shutdown().await;
+
     code.into()
 }
 
-fn execute_command(
+async fn execute_command(
     args: &CliArgs,
     _config: &NetraConfig,
+    coordinator: &RuntimeCoordinator,
     presenter: &OutputPresenter,
 ) -> Result<ExitCode, netra_core::error::NetraError> {
     match &args.command {
         None | Some(Commands::Status) => {
             let platform = detect_platform_info();
+            let state = coordinator.state().await;
+            let health = coordinator.health().await;
             let summary = format!(
                 "NETRA Host Security Agent (v1.0.0-foundation)\n\
                 ─────────────────────────────────────────────────────────────\n\
                   OS Family:       {}\n\
                   Architecture:    {}\n\
                   Hostname:        {}\n\
-                  Status:          ● INITIALIZED (Foundation Ready)\n\
+                  Runtime State:   ● {}\n\
+                  Health Status:   ● {}\n\
                 ─────────────────────────────────────────────────────────────",
-                platform.os_family, platform.arch, platform.hostname
+                platform.os_family, platform.arch, platform.hostname, state, health
             );
 
             presenter.emit_success(
                 "status",
                 json!({
                     "version": "1.0.0-foundation",
-                    "status": "INITIALIZED",
+                    "status": state.to_string(),
+                    "health": health.to_string(),
                     "platform": platform,
                 }),
                 &summary,
@@ -85,6 +131,8 @@ fn execute_command(
 
         Some(Commands::Diagnostics) => {
             let platform = detect_platform_info();
+            let state = coordinator.state().await;
+            let health = coordinator.health().await;
             let priv_str = if platform.is_elevated {
                 "ELEVATED"
             } else {
@@ -97,9 +145,17 @@ fn execute_command(
                   Arch:            {}\n\
                   Hostname:        {}\n\
                   Privilege:       {}\n\
+                  Runtime State:   {}\n\
+                  Runtime Health:  {}\n\
                   Foundation:      Ready for Phase 02 Execution\n\
                 ─────────────────────────────────────────────────────────────",
-                platform.os_family, platform.os_version, platform.arch, platform.hostname, priv_str
+                platform.os_family,
+                platform.os_version,
+                platform.arch,
+                platform.hostname,
+                priv_str,
+                state,
+                health
             );
 
             presenter.emit_success(

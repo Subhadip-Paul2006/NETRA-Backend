@@ -29,6 +29,9 @@ pub enum ErrorKind {
     #[error("Policy & Capability Whitelist Error")]
     Policy,
 
+    #[error("Runtime Lifecycle & State Machine Error")]
+    Runtime,
+
     #[error("Input / Output Error")]
     Io,
 
@@ -47,6 +50,7 @@ impl ErrorKind {
             ErrorKind::Storage => "ERR_STORAGE_FAILURE",
             ErrorKind::Network => "ERR_NETWORK_UNREACHABLE",
             ErrorKind::Policy => "ERR_POLICY_VIOLATION",
+            ErrorKind::Runtime => "ERR_RUNTIME_ERROR",
             ErrorKind::Io => "ERR_IO_ERROR",
             ErrorKind::Internal => "ERR_INTERNAL_ERROR",
         }
@@ -120,6 +124,41 @@ impl NetraError {
 
     pub fn policy(msg: impl Into<String>) -> Self {
         Self::new(ErrorKind::Policy, msg)
+    }
+
+    pub fn runtime(msg: impl Into<String>) -> Self {
+        Self::new(ErrorKind::Runtime, msg)
+    }
+
+    pub fn state_transition(from: impl fmt::Display, to: impl fmt::Display) -> Self {
+        Self::new(
+            ErrorKind::Runtime,
+            format!("Illegal state transition: {} -> {}", from, to),
+        )
+    }
+
+    pub fn component_failure(component: &str, msg: impl Into<String>) -> Self {
+        Self::new(
+            ErrorKind::Runtime,
+            format!("Component '{}' failed: {}", component, msg.into()),
+        )
+    }
+
+    pub fn timeout(operation: &str, duration_ms: u64) -> Self {
+        Self::new(
+            ErrorKind::Runtime,
+            format!(
+                "Operation '{}' timed out after {}ms",
+                operation, duration_ms
+            ),
+        )
+    }
+
+    pub fn cancelled(msg: impl Into<String>) -> Self {
+        Self::new(
+            ErrorKind::Runtime,
+            format!("Operation cancelled: {}", msg.into()),
+        )
     }
 
     pub fn io(msg: impl Into<String>) -> Self {

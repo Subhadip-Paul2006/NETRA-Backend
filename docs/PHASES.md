@@ -128,14 +128,13 @@ flowchart TD
 
 ---
 
-## 6. Phase 2: Rust Core Runtime & OS Sandboxing
+## 6. Phase 2: Rust Core Runtime, Lifecycle & OS Sandboxing
 
-* **Status**: `PLANNED`
-* **Goal**: Implement the two-tier process supervisor and sandboxed worker in Rust.
-* **Scope**:
-  - Supervisor daemon lifecycle (start, stop, restart, Unix/Win32 signal handling).
-  - Worker process spawning with OS resource limits (cgroups v2 on Linux / Job Objects on Windows).
-  - Authenticated local IPC over domain sockets / named pipes (`0600` DACLs).
+* **Status**: `IN PROGRESS`
+* **Sub-phase Breakdown**:
+  - **Phase 2.1 — Core Crate Boundaries & Interfaces (`COMPLETED`)**: Workspace structure (`netra-core`, `netra-platform`, `netra-cli`), unidirectional dependency invariants, platform abstraction traits.
+  - **Phase 2.2 — Runtime Lifecycle & OS Initialization (`COMPLETED`)**: Deterministic `RuntimeState` state machine, pluggable `ComponentLifecycle` contracts, `RuntimeCoordinator` in-process startup/teardown, timeout guards, and automated test suite (42 passed). Note: `DEGRADED -> RUNNING` is structurally supported in the state model; active background health monitoring and automated recovery loops are scoped to Phase 2.3 and Phase 16.
+  - **Phase 2.3 — Process Supervisor Daemon & OS Sandboxing (`NEXT`)**: Two-tier process model (SYSTEM supervisor + low-privilege sandboxed worker), cgroups v2 / Job Objects resource limits, authenticated local IPC (`0600` DACLs), and sub-2-second auto-restart crash watchdog.
 * **Exit Gate**: Worker terminates and restarts within 2 seconds upon crash; memory bounded at under 100MB RSS.
 
 ---

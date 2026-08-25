@@ -75,6 +75,21 @@ impl Default for StorageConfig {
     }
 }
 
+/// Runtime lifecycle and teardown configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeConfig {
+    /// Graceful shutdown timeout ceiling in milliseconds per component (default: 5000ms).
+    pub shutdown_timeout_ms: u64,
+}
+
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self {
+            shutdown_timeout_ms: crate::runtime::DEFAULT_SHUTDOWN_TIMEOUT_MS,
+        }
+    }
+}
+
 /// Root configuration object for NETRA core runtime.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NetraConfig {
@@ -86,6 +101,8 @@ pub struct NetraConfig {
     pub network: NetworkConfig,
     /// Local state storage settings.
     pub storage: StorageConfig,
+    /// Runtime lifecycle settings.
+    pub runtime: RuntimeConfig,
 }
 
 impl NetraConfig {
@@ -121,6 +138,11 @@ impl NetraConfig {
         if let Ok(no_color) = std::env::var("NO_COLOR") {
             self.logging.no_color = no_color == "1" || no_color.eq_ignore_ascii_case("true");
         }
+        if let Ok(timeout_str) = std::env::var("NETRA_SHUTDOWN_TIMEOUT_MS") {
+            if let Ok(timeout) = timeout_str.parse::<u64>() {
+                self.runtime.shutdown_timeout_ms = timeout;
+            }
+        }
     }
 
     /// Validates configuration parameters and boundaries.
@@ -136,6 +158,11 @@ impl NetraConfig {
         if self.storage.max_storage_bytes < 10 * 1024 * 1024 {
             return Err(NetraError::config(
                 "Max storage quota cannot be less than 10MB",
+            ));
+        }
+        if self.runtime.shutdown_timeout_ms == 0 {
+            return Err(NetraError::config(
+                "Shutdown timeout must be greater than 0ms",
             ));
         }
         let valid_levels = ["trace", "debug", "info", "warn", "error"];

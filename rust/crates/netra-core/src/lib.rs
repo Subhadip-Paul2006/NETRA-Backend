@@ -1,17 +1,44 @@
-//! NETRA Core Library
+//! # NETRA Core (`netra-core`)
 //!
-//! Provides the fundamental abstractions, strongly-typed identifiers, structured error
-//! models, configuration management, logging setup, and runtime lifecycle coordination
-//! for the NETRA defensive security platform.
+//! **Domain-Neutral Runtime Foundation for NETRA**
+//!
+//! `netra-core` serves as the root foundational crate of the NETRA defensive security
+//! framework. It establishes foundational types, strongly-typed UUIDv7 identifiers,
+//! a structured error taxonomy, configuration schemas, structured logging initialization,
+//! and asynchronous lifecycle coordination.
+//!
+//! ## Architectural Invariants & Crate Boundaries
+//!
+//! 1. **Zero Internal Workspace Dependencies**: `netra-core` has zero dependencies on other
+//!    crates in the workspace (neither `netra-platform` nor `netra-cli`).
+//! 2. **Domain Neutrality**: `netra-core` contains no presentation logic, no operating system
+//!    syscalls, no network transport implementations, and no database engine drivers.
+//! 3. **No Speculative Abstractions**: Complex scanner registries and SQLite persistence models
+//!    are deferred to their respective feature phases (Phase 7 and Phase 3).
+//!
+//! ## Core Modules
+//!
+//! - [`config`]: Strongly-typed configuration schemas, TOML loading, and environment variable overrides.
+//! - [`error`]: Unified [`NetraError`] structure with categorized [`ErrorKind`] and machine codes.
+//! - [`id`]: Strongly-typed prefixed UUIDv7 identifiers ([`DeviceId`], [`TenantId`], [`TaskId`], [`FindingId`], [`ObservationId`], [`RemediationId`]).
+//! - [`lifecycle`]: Asynchronous [`RuntimeCoordinator`] and lifecycle compatibility layer.
+//! - [`logging`]: Structured subscriber initialization supporting human ANSI and machine JSON formats.
+//! - [`runtime`]: Complete runtime state machine ([`RuntimeState`]), coordinator ([`RuntimeCoordinator`]), and component contracts ([`ComponentLifecycle`]).
 
 pub mod config;
 pub mod error;
 pub mod id;
 pub mod lifecycle;
 pub mod logging;
+pub mod runtime;
 
-pub use config::{LogConfig, NetraConfig, NetworkConfig, RuntimeMode, StorageConfig};
+pub use config::{
+    LogConfig, NetraConfig, NetworkConfig, RuntimeConfig, RuntimeMode, StorageConfig,
+};
 pub use error::{ErrorKind, NetraError, Result};
 pub use id::{DeviceId, FindingId, ObservationId, RemediationId, TaskId, TenantId};
-pub use lifecycle::RuntimeCoordinator;
 pub use logging::init_logging;
+pub use runtime::{
+    ArcComponent, ComponentHealth, ComponentLifecycle, RuntimeCoordinator, RuntimeState,
+    DEFAULT_SHUTDOWN_TIMEOUT_MS,
+};

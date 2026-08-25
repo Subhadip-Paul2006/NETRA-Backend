@@ -127,3 +127,53 @@ flowchart TD
 * **Windows**: Single static `.exe` binary (`x86_64-pc-windows-msvc`), optional MSI installer with Windows Service registration.
 * **Linux**: Single static `.tar.gz` binary (`x86_64-unknown-linux-musl`), `.deb` package (Debian/Ubuntu), `.rpm` package (RHEL/Fedora).
 * **macOS**: Universal Mach-O binary (Apple Silicon + Intel) with Launchd daemon plist.
+
+---
+
+## 9. Cross-Platform OS Termination & Signal Handling Semantics
+
+NETRA enforces strict isolation between external OS signals and internal core lifecycle logic to ensure deterministic, idempotent, and bounded teardown across diverse operating systems:
+
+```mermaid
+flowchart TD
+    subgraph OSLevel["OS Signal & Termination Sources"]
+        WinSig["Windows: CTRL_C_EVENT / CTRL_BREAK_EVENT"]
+        LinuxSig["Linux: SIGINT (Ctrl+C) / SIGTERM (systemd / kill / k8s)"]
+        MacSig["macOS: SIGINT (Ctrl+C) / SIGTERM (launchd / kill)"]
+    end
+
+    subgraph SignalLayer["Signal Multiplexing Layer (wait_for_shutdown)"]
+        WinMux["Windows Console Handler"]
+        UnixMux["Tokio Unix Signal Mux (SIGINT + SIGTERM)"]
+    end
+
+    subgraph CoreLifecycle["Isolated Core Runtime Lifecycle"]
+        Broadcast["broadcast::Sender (trigger_shutdown)"]
+        Coordinator["RuntimeCoordinator::shutdown()"]
+        Teardown["Reverse Component Teardown (5s Timeout Guard)"]
+        StateChange["State: STOPPED / FAILED"]
+    end
+
+    WinSig --> WinMux
+    LinuxSig --> UnixMux
+    MacSig --> UnixMux
+
+    WinMux --> Broadcast
+    UnixMux --> Broadcast
+
+    Broadcast --> Coordinator
+    Coordinator --> Teardown --> StateChange
+```
+
+### Platform-Specific Signal & Termination Matrix
+
+| Feature / Behavior | Windows | Linux | macOS |
+| :--- | :--- | :--- | :--- |
+| **Interactive Terminal Stop (`Ctrl+C`)** | `CTRL_C_EVENT` captured via console handler | `SIGINT` captured via Tokio signal | `SIGINT` captured via Tokio signal |
+| **Console Break (`Ctrl+Break`)** | `CTRL_BREAK_EVENT` captured via console handler | `SIGINT` / `SIGQUIT` | `SIGINT` / `SIGQUIT` |
+| **Service / Container Stop (`SIGTERM`)** | N/A (Windows uses Service Control Manager in Phase 2.3) | `SIGTERM` captured (systemd, Docker, `kill <pid>`) | `SIGTERM` captured (launchd, `kill <pid>`) |
+| **Hard Process Kill** | `TerminateProcess` / `taskkill /F` (Immediate OS kill, uncatchable) | `SIGKILL` / `kill -9` (Immediate kernel kill, uncatchable) | `SIGKILL` / `kill -9` (Immediate kernel kill, uncatchable) |
+| **Graceful Teardown Execution** | Reverse component teardown with 5000ms timeout guard | Reverse component teardown with 5000ms timeout guard | Reverse component teardown with 5000ms timeout guard |
+| **Shutdown Idempotency** | Multiple shutdown triggers execute safely as no-ops | Multiple shutdown triggers execute safely as no-ops | Multiple shutdown triggers execute safely as no-ops |
+| **Signal-Lifecycle Isolation** | Pure signal notification $\to$ internal broadcast channel | Pure signal notification $\to$ internal broadcast channel | Pure signal notification $\to$ internal broadcast channel |
+
