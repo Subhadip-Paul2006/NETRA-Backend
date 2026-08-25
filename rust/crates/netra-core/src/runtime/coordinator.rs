@@ -628,6 +628,7 @@ mod tests {
     async fn test_coordinator_from_config() {
         let config = crate::config::RuntimeConfig {
             shutdown_timeout_ms: 2500,
+            ..Default::default()
         };
         let coordinator = RuntimeCoordinator::from_config(&config);
         assert_eq!(coordinator.shutdown_timeout_ms(), 2500);

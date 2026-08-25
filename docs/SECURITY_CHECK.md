@@ -33,13 +33,29 @@ flowchart TD
     subgraph ZeroTrust["NETRA Security Tenets"]
         T1["1. Rust Memory Safety (Zero Buffer Overflows / No GC)"]
         T2["2. Cryptographic Identity (Ed25519 / No Shared Secrets)"]
-        T3["3. Local-First Hardening (Encrypted SQLite & DACLs)"]
-        T4["4. Zero Inbound Listening Ports (100% Outbound WSS)"]
-        T5["5. Pre-Compiled Execution (Zero Remote Shell / Eval)"]
-        T6["6. Database-Engine Multi-Tenancy (PostgreSQL RLS)"]
+        T3["3. Least-Privilege Separation (Unprivileged Worker + Scoped Supervisor)"]
+        T4["4. Hardened Local IPC (0600 DACLs + Dual-Gated Peer & Token Auth)"]
+        T5["5. Zero Inbound Listening Ports (100% Outbound WSS)"]
+        T6["6. Pre-Compiled Execution (Zero Remote Shell / Eval)"]
         T7["7. Strict Academic Privacy Bounds (Zero Payload Sniffing)"]
     end
 ```
+
+### Protection Layer & Containment Matrix
+
+NETRA establishes explicit, verifiable containment boundaries across operating systems, avoiding overclaiming security guarantees:
+
+| Protection Layer | Windows Control | Linux Control | macOS Control | Implementation Phase |
+| :--- | :--- | :--- | :--- | :--- |
+| **Resource Limitation (RAM)** | Win32 Job Object (`ProcessMemoryLimit = 100MB`) | `cgroups v2` (`memory.max = 100M`) / `setrlimit` | POSIX `setrlimit(RLIMIT_AS)` | **Phase 2.3** |
+| **Resource Limitation (CPU)** | Win32 Job Object (`CPU_RATE_CONTROL = 20%`) | `cgroups v2` (`cpu.max = "20000 100000"`) | Process nice priority | **Phase 2.3** |
+| **Process Lifecycle Isolation** | `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` | `prctl(PR_SET_PDEATHSIG, SIGKILL)` | IPC disconnect watchdog | **Phase 2.3** |
+| **Privilege Reduction** | Unprivileged Token / Standard User token | Dropped to `netra` unprivileged user | Dropped to `_nobody` user | **Phase 2.3** |
+| **Local Transport DACLs** | Named Pipe SDDL (`0600` equivalent) | Unix Domain Socket mode `0600` in `0700` dir | Unix Domain Socket mode `0600` in `0700` dir | **Phase 2.3** |
+| **Peer Credential Verification** | `GetNamedPipeClientProcessId` check | `SO_PEERCRED` (PID + UID check) | `getpeereid()` / `LOCAL_PEERCRED` | **Phase 2.3** |
+| **Ephemeral Token Handshake** | 256-bit CSPRNG token exchange | 256-bit CSPRNG token exchange | 256-bit CSPRNG token exchange | **Phase 2.3** |
+| **Filesystem Isolation** | Windows AppContainer / Sandbox profile | Mount namespaces / Pivot root | Sandbox seatbelt file profile | Phase 14 (Hardening) |
+| **Syscall Restriction** | Restricted Token / Syscall filter | `seccomp-bpf` syscall filter | `sandbox_init` profile | Phase 14 (Hardening) |
 
 ---
 
@@ -57,18 +73,27 @@ Building the NETRA endpoint layer in Rust eliminates an entire class of critical
 Every enrolled agent host is identified by an **Ed25519 (RFC 8032)** asymmetric cryptographic keypair:
 * **Private Key Generation**: Generated locally in memory upon initial enrollment. Private keys are never transmitted over the network.
 * **OS Protected Key Storage**:
-  - **Windows**: Protected via DPAPI (`CryptProtectData`) using `CRYPTPROTECT_LOCAL_MACHINE` scope.
-  - **Linux**: Stored via Freedesktop SecretService API or `0400` root-restricted filesystem vaults.
+  - **Windows**: Protected via DPAPI (`CryptProtectData`) using `CRYPTPROTECT_LOCAL_MACHINE` or `CRYPTPROTECT_CURRENT_USER` scope.
+  - **Linux**: Stored via Freedesktop SecretService API or `0400` root/user-restricted filesystem vaults.
   - **macOS**: Stored in the Apple System Keychain with explicit access control lists.
 * **Canonical Header Verification**: All agent requests are signed with canonical headers (`X-NETRA-Device-ID`, `X-NETRA-Timestamp`, `X-NETRA-Nonce`, `X-NETRA-Signature`) and validated against a $\pm 300\text{ s}$ timestamp window and sliding nonce cache.
 
 ---
 
-## 4. Local State & SQLite Security (Encryption & WAL)
+## 4. Local State & Local IPC Security Boundary
 
-* **Filesystem DACLs**: Local database files (`agent.db`) are restricted to `0600` permissions (accessible only by the root/SYSTEM supervisor).
+### 4.1 Local State (SQLite WAL)
+* **Filesystem DACLs**: Local database files (`agent.db`) are restricted to `0600` permissions (accessible only by the owning supervisor/worker process).
 * **Encryption at Rest**: Optional SQLCipher encryption using a key derived from the OS hardware-backed keyring.
 * **Memory Scrubbing**: Sensitive cryptographic buffers in RAM are zeroed (`zeroize` crate) immediately after signing operations.
+
+### 4.2 Local IPC as a Critical Security Boundary
+The Local IPC link between the Supervisor and Worker processes constitutes a high-assurance host trust boundary:
+
+1. **Kernel Peer Identity Verification**: Before accepting any request frame, the IPC server queries the OS kernel for the connecting process credentials (`GetNamedPipeClientProcessId` on Windows; `SO_PEERCRED` on Linux; `getpeereid()` on macOS). If the PID/UID does not strictly match the expected spawned worker process, the connection is instantly rejected and logged.
+2. **Ephemeral Handshake Secret**: At worker launch, the supervisor generates a single-use 256-bit cryptographically secure token passed via private environment variable or secure startup argument. The worker must present this token in the `HandshakeRequest` within a 3.0-second handshake deadline.
+3. **Session Invalidation on Restart**: Every worker restart completely invalidates the previous IPC session. The supervisor generates a fresh 256-bit token for the new instance, rendering previous tokens or stale sockets useless.
+4. **Frame Guard & Parsing Safety**: Length-delimited framing strictly enforces a `1,048,576` byte (1MB) maximum payload size. Frames exceeding this limit or containing malformed JSON are dropped immediately without heap allocation exhaustion.
 
 ---
 
@@ -153,13 +178,20 @@ sequenceDiagram
 
 ---
 
-## 10. Compromised Agent Threat Model
+## 10. Privilege Separation & Compromised Process Threat Model
 
-If an attacker achieves full root/SYSTEM compromise of an endpoint running NETRA:
+### 10.1 Worker Compromise Threat Model
+If an attacker compromises the Tier-2 Worker process (e.g., via logic vulnerability or parser exploit):
+1. **No Escalation to Supervisor**: The worker interacts with the supervisor strictly over the typed Local IPC interface. It cannot execute arbitrary commands or code within the supervisor.
+2. **Resource Throttling**: The worker cannot consume excessive host RAM or CPU; OS Job Objects / cgroups / rlimits enforce hard limits.
+3. **No Direct OS Keyring / Elevation Rights**: The worker runs with dropped user privileges and cannot access unauthorized OS capabilities.
+
+### 10.2 Supervisor Compromise Threat Model
+If an attacker compromises the host system or supervisor context:
 1. **Blast Radius Containment**: The attacker gains access only to that specific device's Ed25519 private key.
 2. **Tenant Isolation**: The attacker cannot access or forge telemetry for other endpoints; the server verifies signatures against the registered public key for that UUID.
 3. **Database Protection**: The attacker cannot directly access the PostgreSQL database or bypass Row-Level Security.
-4. **Immediate Revocation**: The central control plane can issue an emergency device revocation, permanently dropping the agent's WSS stream.
+4. **Emergency Revocation**: The central control plane can issue an emergency device revocation, permanently rejecting all traffic from that device ID.
 
 ---
 
@@ -168,8 +200,13 @@ If an attacker achieves full root/SYSTEM compromise of an endpoint running NETRA
 | STRIDE Category | Specific Threat Scenario | Attack Surface | Impact | Likelihood | Architectural Mitigation | Residual Risk |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Spoofing** | Rogue host attempts to impersonate an enrolled agent | WSS Ingress `/v1/agent/stream` | High | Low | Mandatory Ed25519 asymmetric signatures on every frame. | Negligible |
+| **Spoofing** | Unauthorized local process attempts to connect to Local IPC | Named Pipe / Unix Socket | High | Low | Dual-gated auth: Kernel peer PID/UID validation + 256-bit ephemeral handshake token. | Negligible |
 | **Tampering** | Man-in-the-Middle modifies task dispatch frames | Network Ingress | High | Low | Strict TLS 1.3 encryption with pinned server certificates. | Negligible |
+| **Tampering** | Local standard user modifies `agent.db` or IPC socket | Local Filesystem | High | Low | Local files protected by OS DACLs (`0600`) in private directory. | Low (Root local access) |
 | **Repudiation** | Operator denies authorizing a destructive remediation | Remediation API | Medium | Low | Cryptographically signed `audit_events` log with operator JWT claims. | Negligible |
-| **Information Disclosure** | Local user attempts to read cached security findings | Local Filesystem | Medium | Low | Local SQLite database protected by `0600` DACLs and OS keyring. | Low (Root local access) |
-| **Denial of Service** | Scanner enters infinite loop or consumes all host RAM | Worker Process | Medium | Medium | Hard sandboxing via Windows Job Objects (100MB) & Linux cgroups (20% CPU). | Negligible |
+| **Information Disclosure** | Local user attempts to read cached security findings | Local Filesystem | Medium | Low | Local SQLite database protected by `0600` DACLs and OS keyring encryption. | Low (Root local access) |
+| **Denial of Service** | Scanner enters infinite loop or consumes host memory | Worker Process | Medium | Medium | Hard resource bounds via Windows Job Objects (100MB) & Linux cgroups / setrlimit. | Negligible |
+| **Denial of Service** | Malicious process floods Local IPC with oversized payloads | Local IPC Socket | Medium | Low | `LengthDelimitedCodec` enforces strict 1MB frame limit; drops and closes connection. | Negligible |
 | **Elevation of Privilege** | Attacker injects shell metacharacters into task arguments | Task Execution Engine | Critical | Low | Zero remote shell execution; strict pre-compiled capability whitelisting. | Negligible |
+| **Elevation of Privilege** | Worker attempts to manipulate supervisor execution | Local IPC Protocol | Critical | Low | Strictly typed JSON command messages with input schema validation; zero raw memory sharing. | Negligible |
+

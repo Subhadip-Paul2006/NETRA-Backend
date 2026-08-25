@@ -84,7 +84,7 @@ flowchart TD
 
 ```bash
 # 1. Enroll an endpoint host into your environment (one-time command)
-$ sudo netra enroll --token enroll_sec_99a8b7c6d5e4
+$ netra enroll --token enroll_sec_99a8b7c6d5e4
 
 # 2. Check local agent health and connection state
 $ netra status

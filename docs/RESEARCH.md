@@ -112,7 +112,32 @@ flowchart TD
 
 ---
 
-## 7. Comprehensive Visual Inventory (59 Architectural Diagrams)
+---
+
+## 7. Privilege Architecture & Process Containment Research
+
+### 7.1 Rejection of Monolithic Elevated Execution
+Prior endpoint agents frequently assumed that background daemons must permanently run with unrestricted administrator privileges (`root` / `NT AUTHORITY\SYSTEM`). Our research evaluated and rejected this pattern for the following reasons:
+1. **Unnecessary Attack Surface**: >80% of endpoint telemetry tasks (event loop scheduling, network graph processing, local SQLite buffering, and outbound streaming) operate perfectly within standard unprivileged user space.
+2. **Blast Radius Minimization**: Running the worker process under low privileges prevents a flaw in telemetry parsers or rules from resulting in full kernel/root compromise.
+3. **Least-Privilege Capability Escalation**: Privileged operations (e.g. system-wide packet filter modifications) should be requested on-demand or delegated to narrowly scoped helper utilities rather than granting blanket SYSTEM rights to the entire runtime.
+
+### 7.2 Resource Containment vs. Full Sandboxing
+Security literature often conflates resource throttling with security sandboxing. We explicitly distinguish:
+- **Resource Limitation**: Enforcing memory and CPU ceilings (via Win32 Job Objects, cgroups v2, or `setrlimit`) protects host stability and prevents runaway worker denial-of-service.
+- **Process Lifecycle Isolation**: Enforcing parent-death cleanup (`KILL_ON_JOB_CLOSE`, `PDEATHSIG`) prevents orphaned background worker processes.
+- **Full Sandboxing**: Advanced syscall filtering (seccomp-bpf) and filesystem isolation (AppContainer/namespaces) constitute separate security layers assigned to dedicated hardening phases.
+
+### 7.3 Local IPC Protocol Trade-Offs
+| IPC Alternative | Transport | Framing | Security Boundary | Selected / Rejected |
+| :--- | :--- | :--- | :--- | :--- |
+| **HTTP over Localhost (127.0.0.1)** | Loopback TCP | HTTP/1.1 or 2 | Weak: Accessible by any local process without socket DACL | **Rejected** (Violates zero listening ports) |
+| **gRPC over Localhost** | HTTP/2 TCP | Protobuf | High binary overhead (~3MB extra crates); weak local DACL | **Rejected** (Unnecessary weight for local IPC) |
+| **★ Length-Delimited JSON over Named Pipes / UDS** | OS Sockets / Pipes | 4-byte BE + JSON | **Strong: OS DACLs (`0600`) + Peer PID/UID check + Ephemeral Token** | **Selected Core Protocol** |
+
+---
+
+## 8. Comprehensive Visual Inventory (59 Architectural Diagrams)
 
 The NETRA architecture is visually modeled across 59 dedicated Mermaid diagrams distributed throughout the specification suite:
 
@@ -127,3 +152,4 @@ The NETRA architecture is visually modeled across 59 dedicated Mermaid diagrams 
 * **Master Phased Implementation Roadmap (`docs/PHASES.md`)**: 2 diagrams covering master milestone timelines and 17-phase dependency gating graphs.
 * **Integration Gateways (`docs/SLACK.md` & `docs/DISCORD.md`)**: 4 diagrams covering Slack dual-custody approval loops, Block Kit schemas, and Discord homelab notification flows.
 * **Research & Discovery (`docs/RESEARCH.md` & `README.md`)**: 9 diagrams covering legacy anti-patterns, competitive matrices, core breakthroughs, and front-door architectures.
+

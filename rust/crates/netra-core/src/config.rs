@@ -75,17 +75,26 @@ impl Default for StorageConfig {
     }
 }
 
-/// Runtime lifecycle and teardown configuration.
+/// Runtime lifecycle, supervisor, and process isolation configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     /// Graceful shutdown timeout ceiling in milliseconds per component (default: 5000ms).
     pub shutdown_timeout_ms: u64,
+    /// Maximum worker memory ceiling in bytes (default: 100MB).
+    pub worker_memory_limit_bytes: u64,
+    /// Watchdog base restart delay in milliseconds upon worker exit (default: 2000ms).
+    pub restart_delay_ms: u64,
+    /// Maximum consecutive worker crashes before tripping circuit breaker (default: 5).
+    pub max_consecutive_crashes: u32,
 }
 
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
             shutdown_timeout_ms: crate::runtime::DEFAULT_SHUTDOWN_TIMEOUT_MS,
+            worker_memory_limit_bytes: 100 * 1024 * 1024, // 100 MB
+            restart_delay_ms: 2000,
+            max_consecutive_crashes: 5,
         }
     }
 }
@@ -143,6 +152,21 @@ impl NetraConfig {
                 self.runtime.shutdown_timeout_ms = timeout;
             }
         }
+        if let Ok(mem_str) = std::env::var("NETRA_WORKER_MEMORY_LIMIT_BYTES") {
+            if let Ok(mem) = mem_str.parse::<u64>() {
+                self.runtime.worker_memory_limit_bytes = mem;
+            }
+        }
+        if let Ok(delay_str) = std::env::var("NETRA_RESTART_DELAY_MS") {
+            if let Ok(delay) = delay_str.parse::<u64>() {
+                self.runtime.restart_delay_ms = delay;
+            }
+        }
+        if let Ok(crashes_str) = std::env::var("NETRA_MAX_CONSECUTIVE_CRASHES") {
+            if let Ok(crashes) = crashes_str.parse::<u32>() {
+                self.runtime.max_consecutive_crashes = crashes;
+            }
+        }
     }
 
     /// Validates configuration parameters and boundaries.
@@ -163,6 +187,16 @@ impl NetraConfig {
         if self.runtime.shutdown_timeout_ms == 0 {
             return Err(NetraError::config(
                 "Shutdown timeout must be greater than 0ms",
+            ));
+        }
+        if self.runtime.worker_memory_limit_bytes < 10 * 1024 * 1024 {
+            return Err(NetraError::config(
+                "Worker memory limit cannot be less than 10MB",
+            ));
+        }
+        if self.runtime.max_consecutive_crashes == 0 {
+            return Err(NetraError::config(
+                "Max consecutive crashes must be greater than 0",
             ));
         }
         let valid_levels = ["trace", "debug", "info", "warn", "error"];

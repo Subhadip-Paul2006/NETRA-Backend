@@ -25,6 +25,14 @@ pub struct CliArgs {
     #[arg(short, long, global = true, value_name = "FILE")]
     pub config: Option<PathBuf>,
 
+    /// Hidden launcher flag indicating execution as Tier-2 low-privilege worker.
+    #[arg(long, hide = true)]
+    pub worker: bool,
+
+    /// Hidden ephemeral IPC token passed from supervisor to worker.
+    #[arg(long, hide = true, value_name = "TOKEN")]
+    pub ipc_token: Option<String>,
+
     /// Subcommand to execute.
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -114,6 +122,8 @@ pub struct ServiceArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum ServiceSubcommand {
+    /// Run the supervisor daemon directly in the foreground.
+    Run,
     /// Start the background supervisor daemon.
     Start,
     /// Stop the background supervisor daemon.

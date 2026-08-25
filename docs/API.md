@@ -25,6 +25,7 @@
 11. [Controlled Remediation Endpoints](#11-controlled-remediation-endpoints)
 12. [Integration Gateway Endpoints (Slack & Webhooks)](#12-integration-gateway-endpoints-slack--webhooks)
 13. [Health, Telemetry & Diagnostics Endpoints](#13-health-telemetry--diagnostics-endpoints)
+14. [Internal Local IPC Protocol Specification (Phase 2.3)](#14-internal-local-ipc-protocol-specification-phase-23)
 
 ---
 
@@ -420,3 +421,184 @@ Handles Slack Block Kit interactive buttons (`[Approve Remediation]`).
 
 * `GET /v1/health`: System health check (`{"status": "HEALTHY", "db": "CONNECTED", "version": "1.0.0"}`).
 * `GET /metrics`: Standard Prometheus metrics format.
+
+---
+
+## 14. Internal Local IPC Protocol Specification (Phase 2.3)
+
+> [!NOTE]
+> **Internal Trust Boundary Contract**: This section specifies the host-local communication protocol connecting the **Tier-1 Supervisor Daemon**, **Tier-2 Worker Process**, and **CLI Query Launcher**. It operates strictly over local OS abstractions (Named Pipes / Unix Domain Sockets) and is completely decoupled from the external HTTP / WSS API.
+
+### 14.1 Transport & Wire Framing
+* **Windows Transport**: Named Pipe (`\\.\pipe\netra-supervisor-ipc`) with strict SDDL DACL.
+* **Unix Transport**: Unix Domain Socket (`/run/netra/supervisor.sock` or `$XDG_RUNTIME_DIR/netra/supervisor.sock`) with mode `0600`.
+* **Framing Format**: 4-byte unsigned big-endian length prefix followed by UTF-8 encoded JSON payload:
+  ```text
+  +-------------------------+----------------------------------------------------+
+  | Length Prefix (4-byte)  |             JSON Payload (UTF-8)                   |
+  | Big-Endian uint32       |  {"protocol_version":1,"message_type":"Heartbeat"...} |
+  +-------------------------+----------------------------------------------------+
+  ```
+* **Maximum Frame Size Guard**: `1,048,576` bytes (1MB). Frames exceeding this limit trigger immediate connection termination.
+
+### 14.2 Universal IPC Envelope Schema
+
+```json
+{
+  "protocol_version": 1,
+  "message_type": "CommandRequest",
+  "request_id": "req_01h8a9b2c3d4",
+  "correlation_id": "corr_01h8a9b2c3d4",
+  "session_id": "sess_01h8a9b2c3d4",
+  "timestamp": 1776189500,
+  "payload": { ... }
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `protocol_version` | `uint32` | Protocol version integer (Current: `1`). Mismatched versions receive `INCOMPATIBLE_VERSION`. |
+| `message_type` | `string` | Enum identifying the payload schema type. |
+| `request_id` | `string` | Unique UUIDv7 identifier for the specific request. |
+| `correlation_id` | `string?` | Optional UUIDv7 linking a response or event to an initial request. |
+| `session_id` | `string?` | Cryptographic session identifier assigned upon successful handshake. |
+| `timestamp` | `int64` | Unix epoch timestamp in seconds. |
+| `payload` | `object` | Type-specific JSON payload body. |
+
+### 14.3 IPC Message Catalog
+
+#### 1. `HandshakeRequest` (Client $\to$ Server)
+```json
+{
+  "protocol_version": 1,
+  "message_type": "HandshakeRequest",
+  "request_id": "req_01h8a9b2c3d4",
+  "timestamp": 1776189500,
+  "payload": {
+    "token": "a1b2c3d4e5f6...",
+    "client_pid": 10482,
+    "client_role": "WORKER",
+    "version": "1.0.0-foundation"
+  }
+}
+```
+
+#### 2. `HandshakeResponse` (Server $\to$ Client)
+```json
+{
+  "protocol_version": 1,
+  "message_type": "HandshakeResponse",
+  "correlation_id": "req_01h8a9b2c3d4",
+  "timestamp": 1776189501,
+  "payload": {
+    "success": true,
+    "session_id": "sess_01h8b1c2d3e4",
+    "heartbeat_interval_ms": 5000,
+    "error": null
+  }
+}
+```
+
+#### 3. `Heartbeat` (Worker $\to$ Supervisor)
+```json
+{
+  "protocol_version": 1,
+  "message_type": "Heartbeat",
+  "session_id": "sess_01h8b1c2d3e4",
+  "timestamp": 1776189505,
+  "payload": {
+    "memory_rss_bytes": 14680064,
+    "cpu_usage_pct": 0.4,
+    "runtime_state": "RUNNING",
+    "active_tasks": 0
+  }
+}
+```
+
+#### 4. `HeartbeatAck` (Supervisor $\to$ Worker)
+```json
+{
+  "protocol_version": 1,
+  "message_type": "HeartbeatAck",
+  "session_id": "sess_01h8b1c2d3e4",
+  "timestamp": 1776189505,
+  "payload": {
+    "acknowledged": true
+  }
+}
+```
+
+#### 5. `CommandRequest` (Supervisor / CLI $\to$ Worker)
+```json
+{
+  "protocol_version": 1,
+  "message_type": "CommandRequest",
+  "request_id": "req_01h8c2d3e4f5",
+  "session_id": "sess_01h8b1c2d3e4",
+  "timestamp": 1776189510,
+  "payload": {
+    "action": "STATUS_QUERY",
+    "parameters": {}
+  }
+}
+```
+
+#### 6. `CommandResponse` (Worker $\to$ Supervisor / CLI)
+```json
+{
+  "protocol_version": 1,
+  "message_type": "CommandResponse",
+  "correlation_id": "req_01h8c2d3e4f5",
+  "session_id": "sess_01h8b1c2d3e4",
+  "timestamp": 1776189510,
+  "payload": {
+    "success": true,
+    "data": {
+      "state": "RUNNING",
+      "health": "HEALTHY",
+      "uptime_seconds": 120
+    },
+    "error": null
+  }
+}
+```
+
+#### 7. `ShutdownNotice` (Supervisor $\to$ Worker)
+```json
+{
+  "protocol_version": 1,
+  "message_type": "ShutdownNotice",
+  "request_id": "req_01h8d3e4f5a6",
+  "timestamp": 1776189520,
+  "payload": {
+    "reason": "OS_TERMINATION_SIGNAL",
+    "grace_period_ms": 5000
+  }
+}
+```
+
+#### 8. `ErrorResponse` (Server $\to$ Client)
+```json
+{
+  "protocol_version": 1,
+  "message_type": "ErrorResponse",
+  "correlation_id": "req_01h8a9b2c3d4",
+  "timestamp": 1776189501,
+  "payload": {
+    "error_code": "UNAUTHORIZED_TOKEN",
+    "message": "The provided ephemeral handshake token is invalid or expired."
+  }
+}
+```
+
+### 14.4 Error Codes & Behavior Table
+| Error Code | Trigger Condition | Server Action |
+| :--- | :--- | :--- |
+| `UNAUTHORIZED_TOKEN` | Token mismatch in `HandshakeRequest` | Drops session and terminates connection |
+| `PEER_PID_MISMATCH` | Kernel peer PID != claimed client PID | Disconnects immediately; logs security audit alert |
+| `HANDSHAKE_TIMEOUT` | No handshake received within 3.0s | Drops unauthenticated socket |
+| `FRAME_OVERFLOW` | Frame size header exceeds 1MB | Closes socket without allocating buffer |
+| `MALFORMED_JSON` | Payload cannot be parsed as JSON envelope | Returns `ErrorResponse` and drops connection |
+| `INCOMPATIBLE_VERSION` | Client protocol version != server version | Rejects connection with supported version range |
+| `SESSION_EXPIRED` | Worker restarted; old session ID used | Rejects request; client must perform fresh handshake |
+

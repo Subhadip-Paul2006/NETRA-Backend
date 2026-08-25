@@ -128,14 +128,14 @@ flowchart TD
 
 ---
 
-## 6. Phase 2: Rust Core Runtime, Lifecycle & OS Sandboxing
+## 6. Phase 2: Rust Core Runtime, Lifecycle & Process Isolation
 
 * **Status**: `IN PROGRESS`
 * **Sub-phase Breakdown**:
   - **Phase 2.1 — Core Crate Boundaries & Interfaces (`COMPLETED`)**: Workspace structure (`netra-core`, `netra-platform`, `netra-cli`), unidirectional dependency invariants, platform abstraction traits.
-  - **Phase 2.2 — Runtime Lifecycle & OS Initialization (`COMPLETED`)**: Deterministic `RuntimeState` state machine, pluggable `ComponentLifecycle` contracts, `RuntimeCoordinator` in-process startup/teardown, timeout guards, and automated test suite (42 passed). Note: `DEGRADED -> RUNNING` is structurally supported in the state model; active background health monitoring and automated recovery loops are scoped to Phase 2.3 and Phase 16.
-  - **Phase 2.3 — Process Supervisor Daemon & OS Sandboxing (`NEXT`)**: Two-tier process model (SYSTEM supervisor + low-privilege sandboxed worker), cgroups v2 / Job Objects resource limits, authenticated local IPC (`0600` DACLs), and sub-2-second auto-restart crash watchdog.
-* **Exit Gate**: Worker terminates and restarts within 2 seconds upon crash; memory bounded at under 100MB RSS.
+  - **Phase 2.2 — Runtime Lifecycle & OS Initialization (`COMPLETED`)**: Deterministic `RuntimeState` state machine, pluggable `ComponentLifecycle` contracts, `RuntimeCoordinator` in-process startup/teardown, timeout guards, and automated test suite (49 passed across workspace). Note: `DEGRADED -> RUNNING` is structurally supported in the state model; active background health monitoring and automated recovery loops are scoped to Phase 2.3 and Phase 16.
+  - **Phase 2.3 — Privilege Separation, Process Isolation & Local IPC Foundation (`NEXT`)**: Two-tier process model (least-privilege supervisor + low-privilege worker), configurable cgroups v2 / Job Objects / setrlimit resource bounds, authenticated local IPC (`0600` DACLs + dual-gated peer PID & token handshake), sub-2-second auto-restart crash watchdog, and 5-crash circuit breaker.
+* **Exit Gate**: Worker terminates and restarts within 2 seconds upon crash; memory bounded at configured ceiling (100MB default); zero unauthorized IPC connections permitted.
 
 ---
 
@@ -271,11 +271,11 @@ flowchart TD
 ## 18. Phase 14: Cross-Platform Hardening (Windows, Linux, macOS)
 
 * **Status**: `PLANNED`
-* **Goal**: Validate and harden OS adapters across Windows, Linux, and macOS.
+* **Goal**: Validate and harden OS adapters and advanced isolation across Windows, Linux, and macOS.
 * **Scope**:
-  - Windows: Win32 COM, DPAPI, and MSI packaging.
-  - Linux: Netlink, systemd units, and `.deb`/`.rpm` packaging.
-  - macOS: `sysctl`, Keychain, and Launchd daemons.
+  - Windows: Win32 COM, DPAPI, AppContainer / restricted token hardening, and MSI packaging.
+  - Linux: Netlink, systemd units, seccomp-bpf syscall filtering, mount namespace isolation, and `.deb`/`.rpm` packaging.
+  - macOS: `sysctl`, Keychain, Seatbelt sandbox profiles (`sandbox_init`), and Launchd daemons.
 * **Exit Gate**: Native test suites pass 100% on automated Windows, Ubuntu, and macOS runners.
 
 ---

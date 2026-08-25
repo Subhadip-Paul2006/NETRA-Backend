@@ -55,16 +55,27 @@ flowchart TD
     
     CheckMode -- "CLI Command (e.g., netra scan)" --> CLIMode["Interactive / Scripting CLI Mode<br/>• Short-lived userspace process<br/>• Direct OS probing or Local Daemon IPC<br/>• stdout/stderr stream separation<br/>• Pure JSON / ANSI table outputs"]
     
-    CheckMode -- "Service Daemon (systemd / Windows SCM)" --> DaemonMode["Two-Tier Background Service Mode"]
+    CheckMode -- "Service Daemon (systemd / Windows SCM / user daemon)" --> DaemonMode["Two-Tier Background Service Mode"]
     
     subgraph DaemonMode["Two-Tier Background Service Mode"]
         direction TB
-        Supervisor["Tier 1: OS Supervisor Daemon (Rust / SYSTEM / Root)<br/>• Watchdog monitoring & auto-restart<br/>• Keyring access & atomic binary updates<br/>• System-level firewall / route probing"]
-        Worker["Tier 2: Sandboxed Worker Process (Rust / Low-Privilege)<br/>• WSS stream gateway connection<br/>• Task execution & rule evaluation<br/>• Local SQLite FIFO buffering"]
+        Supervisor["Tier 1: OS Supervisor Daemon (Rust / Least-Privilege Default)<br/>• Watchdog monitoring & auto-restart<br/>• Child lifecycle & resource limitation enforcement<br/>• Authenticated Local IPC broker"]
+        Worker["Tier 2: Isolated Worker Process (Rust / Low-Privilege)<br/>• WSS stream gateway connection (Phase 6)<br/>• Task execution & rule evaluation<br/>• Local SQLite FIFO buffering"]
         
-        Supervisor <-->|Local Domain Socket / Named Pipe (DACL 0600)| Worker
+        Supervisor <-->|Authenticated Local IPC (0600 DACLs / Peer Auth)| Worker
     end
 ```
+
+### Runtime Privilege & Isolation Strategy
+
+1. **Least-Privilege Execution by Default**:
+   - The Supervisor daemon and Worker process execute in standard unprivileged user context by default.
+   - When run as a background service, NETRA supports both unprivileged user daemon mode (e.g., `systemd --user`, user LaunchAgent, background process) and system daemon mode.
+   - Privileged operations (e.g., cross-user socket mapping in Phase 7 or firewall rule adjustments in Phase 12) are requested on-demand or isolated to dedicated helper binaries, rather than requiring the entire daemon to run as root/SYSTEM.
+2. **Behavior When Elevation Is Unavailable**:
+   - NETRA executes in unprivileged mode, auditing own-process and accessible system information.
+   - Privileged scan capabilities transition to `ComponentHealth::Degraded` with informative status messages rather than crashing the agent.
+   - Remediation operations requiring root/admin return an explicit `ELEVATION_REQUIRED` error with required capabilities.
 
 ### Runtime Lifecycle & Conceptual Boundary
 
@@ -126,24 +137,21 @@ When the system boots or the NETRA daemon is initiated, the startup sequence pro
 ```mermaid
 sequenceDiagram
     autonumber
-    participant OS as OS Service Manager
-    participant Sup as NETRA Supervisor (Rust)
-    participant Keyring as OS Secure Keyring
-    participant DB as Local SQLite DB
-    participant Worker as NETRA Worker (Rust)
+    participant OS as OS Init / User Launcher
+    participant Sup as NETRA Tier-1 Supervisor (Rust)
+    participant IPC as Local IPC Server (0600 DACL)
+    participant DB as Local SQLite DB (User / System Store)
+    participant Worker as NETRA Tier-2 Worker (Rust)
 
-    OS->>Sup: Start Service (netra service start)
+    OS->>Sup: Start Service (netra service run)
     Sup->>DB: Open/Migrate netra_local.db (Enable WAL Mode)
-    Sup->>Keyring: Retrieve Ed25519 Device Private Key
-    alt Key Missing (First Run)
-        Sup->>Sup: Generate Ed25519 Keypair (RFC 8032)
-        Sup->>Keyring: Store Private Key in DPAPI / SecretService
-        Sup->>DB: Record Key Metadata & Device UUIDv7
-    end
-    Sup->>Worker: Fork & Sandbox Worker Process (Apply cgroups / Job Objects)
-    Sup->>Worker: Establish Authenticated Local IPC
-    Worker->>Worker: Start Async Tokio Event Loop & Scan Schedulers
-    Worker-->>Sup: Heartbeat OK (Daemon Operational)
+    Sup->>IPC: Bind Local IPC Endpoint (Named Pipe / Unix Socket)
+    Sup->>Sup: Generate Ephemeral 256-bit Handshake Secret
+    Sup->>Worker: Spawn Child Process with Resource Limits (Job Objects / cgroups / rlimit)
+    Worker->>IPC: Connect & Mutual Handshake (Verify Peer Credentials + Token)
+    IPC-->>Worker: Handshake OK (Session Established)
+    Worker->>Worker: Start Async Tokio Event Loop & Schedulers
+    Worker-->>IPC: Heartbeat OK (Runtime RUNNING)
 ```
 
 ---
@@ -265,19 +273,20 @@ stateDiagram-v2
 
 ---
 
-## 8. Security Scanning Subsystems & OS Sandboxing
+## 8. Security Scanning Subsystems & Process Resource Isolation
 
-Scanning capabilities execute inside isolated asynchronous Rust tasks bounded by OS-level resource sandboxes:
+Scanning capabilities execute inside isolated asynchronous Rust tasks bounded by OS-level resource limits and process containment:
 
 1. **`SCAN_NETWORK`**: Native OS socket inspection (`GetExtendedTcpTable` on Windows via `windows-sys`, Netlink `rtnetlink` / `/proc/net/tcp` on Linux via `nix`, `sysctl KERN_PROC` on macOS). Maps listening ports, bound IPs, and associated process binaries.
 2. **`SCAN_PROCESSES`**: Enumerates running processes, parent PIDs, executable paths, SHA-256 binary hashes, and active CLI parameters.
 3. **`SCAN_FIREWALL`**: Queries kernel packet filters (Windows `INetFwPolicy2`, Linux `nftables`/`iptables`, macOS `pfctl`). Detects disabled profiles or overly permissive `0.0.0.0/0` inbound rules.
 4. **`SCAN_USERS`**: Audits local user accounts, active sudoers, and dormant administrative profiles.
 
-### OS Sandboxing Constraints:
-* **Linux**: Managed via `cgroups v2` (`CPUQuota=20%`, `MemoryMax=100M`).
-* **Windows**: Bound to a Windows **Job Object** with `JOB_OBJECT_LIMIT_PROCESS_MEMORY` (100MB) and `JOB_OBJECT_CPU_RATE_CONTROL` (20%).
-* **Execution Timeout**: Hard 30-second context timeout per scanner run.
+### Configurable Process Resource Controls:
+* **Linux**: Configured via `cgroups v2` slice (`cpu.max = "20000 100000"` [20% CPU], `memory.max = 104857600` [100MB], `pids.max = 64`). Fallback to POSIX `setrlimit` (`RLIMIT_AS`) if cgroups v2 controller is unavailable.
+* **Windows**: Bound to a Win32 **Job Object** with `JOB_OBJECT_LIMIT_PROCESS_MEMORY` (`100MB` default) and `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (prevents orphaned processes).
+* **macOS**: Bound via POSIX `setrlimit` (`RLIMIT_AS` / `RLIMIT_RSS`).
+* **Execution Timeout Policy**: Default 30-second context timeout per scanner invocation.
 
 ---
 
@@ -444,9 +453,14 @@ stateDiagram-v2
 
 ## 16. Failure Handling, Watchdogs & Crash Recovery
 
-1. **Supervisor Process Watchdog**: The Supervisor daemon continuously monitors the Worker process PID. If the Worker terminates unexpectedly, the Supervisor logs the crash stack, delays for 2 seconds, and restarts the Worker with clean memory bounds.
-2. **Resource Throttling Watchdog**: If the Worker process exceeds 150MB RSS memory or 25% CPU for >60 continuous seconds, the Supervisor triggers a `SIGTERM` followed by a fresh restart.
-3. **Database Corruption Recovery**: If `netra_local.db` experiences header corruption, SQLite WAL recovery is executed automatically. If unrecoverable, the database is rotated to `.corrupt.[timestamp]` and reinitialized from the secure keyring credentials.
+1. **Supervisor Process Watchdog & Auto-Restart**:
+   - The Supervisor daemon monitors the Worker child process PID asynchronously.
+   - **Target**: On an isolated unexpected worker exit, auto-restart occurs in $\le 2000\text{ ms}$.
+   - **Exponential Backoff**: If repeated crashes occur, backoff increases ($2\text{s} \to 4\text{s} \to 8\text{s} \to 16\text{s} \to 32\text{s}$).
+   - **Circuit Breaker**: If $\ge 5$ consecutive crashes happen in a 300-second window, auto-restart is suspended, and the supervisor transitions to `SupervisorState::Failed` to prevent host resource thrashing.
+   - **Stable Reset**: 60 seconds of continuous stable execution resets the crash counter.
+2. **Resource Throttling Watchdog**: If the Worker process exceeds configured memory ceilings or CPU quotas for $>60$ continuous seconds, the Supervisor triggers a `ShutdownNotice` followed by graceful restart.
+3. **Database Corruption Recovery**: If `netra_local.db` experiences header corruption, SQLite WAL recovery is executed automatically. If unrecoverable, the database is rotated to `.corrupt.[timestamp]` and reinitialized.
 
 ---
 
@@ -499,4 +513,102 @@ sequenceDiagram
         Gateway-->>Engine: Frame: ACK_FINDING (Ingested)
         Engine->>SQLite: Mark Queue Status SYNCED
     end
+```
+
+### 17.3 Local IPC Startup & Mutual Handshake
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sup as Supervisor Daemon
+    participant IPC as Local IPC Server
+    participant Worker as Worker Process
+
+    Sup->>IPC: Bind Local IPC Endpoint (Named Pipe / Unix Domain Socket)
+    Sup->>Sup: Generate Ephemeral 256-bit Secret Token
+    Sup->>Worker: Spawn Worker Process (pass token via env/arg)
+    Worker->>IPC: Connect to Local IPC Endpoint
+    IPC->>IPC: Inspect Peer OS Credentials (PID/UID Validation)
+    Worker->>IPC: IpcEnvelope::HandshakeRequest { token, worker_pid, protocol_version: 1 }
+    alt Valid Token & Matching PID
+        IPC->>Worker: IpcEnvelope::HandshakeResponse { success: true, session_id: "sess_01h..." }
+        Note over IPC,Worker: Connection promoted to Authenticated State
+    else Invalid Token or Wrong PID
+        IPC->>Worker: IpcEnvelope::HandshakeResponse { success: false, error: "UNAUTHORIZED" }
+        IPC->>Worker: Close Connection
+    end
+```
+
+### 17.4 Local IPC Periodic Heartbeat & Liveness
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Worker as Worker Process
+    participant IPC as Local IPC Server
+    participant Watchdog as Supervisor Watchdog
+
+    loop Every 5 Seconds
+        Worker->>IPC: IpcEnvelope::Heartbeat { memory_bytes, cpu_pct, state: "RUNNING" }
+        IPC->>Watchdog: Record Worker Liveness (Reset Heartbeat Watchdog)
+        IPC-->>Worker: IpcEnvelope::HeartbeatAck { timestamp }
+    end
+
+    alt Heartbeat Missed for 15s
+        Watchdog->>Watchdog: Heartbeat Timeout Exceeded!
+        Watchdog->>Sup: Declare Worker Unresponsive -> Initiate Teardown & Restart
+    end
+```
+
+### 17.5 Local IPC Malformed Frame & Error Handling
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as Malicious / Rogue Client
+    participant IPC as Local IPC Server
+
+    Client->>IPC: Sends Frame > 1MB OR Malformed JSON / Invalid Protocol Version
+    IPC->>IPC: LengthDelimitedCodec detects overflow OR JSON parse error
+    IPC->>Client: IpcEnvelope::ErrorResponse { code: "INVALID_FRAME", message: "..." }
+    IPC->>Client: Terminate Connection & Log Security Warning
+```
+
+### 17.6 Worker Crash & Sub-2s Watchdog Recovery
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Worker as Worker Process
+    participant Watchdog as Supervisor Watchdog
+    participant Sup as Supervisor Daemon
+
+    Worker--xWorker: Unexpected Panic / Crash (Exit Code != 0)
+    Watchdog->>Watchdog: Child Exit Event Detected (child.wait())
+    Watchdog->>Watchdog: Check Crash History Window (5m window)
+    alt Crash Count < 5
+        Watchdog->>Watchdog: Apply Backoff Delay (Sub-2s for first crash)
+        Watchdog->>Sup: Spawn Fresh Worker Sandbox with New Ephemeral Token
+        Sup->>Worker: Worker Re-initializes & Completes Handshake
+    else Crash Count >= 5 (Circuit Breaker Tripped)
+        Watchdog->>Sup: State -> FAILED (Halt Auto-Restarts to Protect Host)
+    end
+```
+
+### 17.7 Graceful Teardown over Local IPC
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant OS as OS Signal (SIGINT / SCM Stop)
+    participant Sup as Supervisor Daemon
+    participant IPC as Local IPC Server
+    participant Worker as Worker Process
+
+    OS->>Sup: Termination Signal Received
+    Sup->>IPC: Broadcast IpcEnvelope::ShutdownNotice { grace_period_ms: 5000 }
+    Worker->>Worker: Reverse Teardown of Runtime Components
+    Worker-->>IPC: IpcEnvelope::ShutdownAck
+    Sup->>Worker: Await Child Process Clean Exit (or Kill after 5s)
+    Sup->>IPC: Close IPC Endpoint & Release Resources
 ```

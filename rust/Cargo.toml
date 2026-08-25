@@ -32,6 +32,8 @@ chrono = { version = "0.4.40", features = ["serde"] }
 
 # Asynchronous Runtime & Platform
 tokio = { version = "1.44.0", features = ["full"] }
+tokio-util = { version = "0.7.13", features = ["codec"] }
+futures-util = { version = "0.3.31", default-features = false, features = ["sink", "std", "async-await"] }
 async-trait = "0.1.87"
 
 # CLI & Output Presentation
@@ -40,3 +42,4 @@ clap = { version = "4.5.31", features = ["derive", "env"] }
 # Structured Logging & Telemetry
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
+

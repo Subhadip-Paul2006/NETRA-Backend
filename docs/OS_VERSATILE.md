@@ -66,7 +66,8 @@ pub trait OSAdapter: Send + Sync {
 * **Socket & TCP Table**: Direct invocation of `GetExtendedTcpTable` and `GetExtendedUdpTable` from `Iphlpapi.dll` via `windows-sys`.
 * **Firewall Management**: Windows COM automation via `INetFwPolicy2` interface (Domain, Private, Public profiles).
 * **Hardware-Protected Storage**: Windows DPAPI (`CryptProtectData` / `CryptUnprotectData`).
-* **Resource Sandboxing**: Binds worker process to a Win32 **Job Object** (`JOB_OBJECT_LIMIT_PROCESS_MEMORY`, `JOB_OBJECT_CPU_RATE_CONTROL`).
+* **Resource Limitation & Isolation**: Binds child worker process to an anonymous Win32 **Job Object** (`JOB_OBJECT_LIMIT_PROCESS_MEMORY`, `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, and optional `JOB_OBJECT_CPU_RATE_CONTROL`).
+* **Local IPC Transport**: Tokio Named Pipe (`\\.\pipe\netra-supervisor-ipc`) secured with strict SDDL security descriptors, verifying caller PID via `GetNamedPipeClientProcessId`.
 
 ---
 
@@ -74,8 +75,9 @@ pub trait OSAdapter: Send + Sync {
 
 * **Socket & Routing Extraction**: High-performance **Netlink (`rtnetlink`, `inet_diag`)** sockets via pure Rust bindings (`netlink-packet-route`), falling back to `/proc/net/tcp` and `/proc/net/udp`.
 * **Firewall Verification**: Native Netfilter (`nftables` / `iptables`) communication.
-* **Key Storage**: Freedesktop SecretService API or `0400` root-owned key vault in `/etc/netra/keys/`.
-* **Resource Sandboxing**: Bounded via **systemd slice / `cgroups v2`** (`CPUQuota=20%`, `MemoryMax=100M`).
+* **Key Storage**: Freedesktop SecretService API or `0400` root/user-owned key vault in `/etc/netra/keys/` or `~/.config/netra/keys/`.
+* **Resource Limitation & Isolation**: Bounded via **systemd slice / `cgroups v2`** (`memory.max = 104857600`, `cpu.max = 20000 100000`, `pids.max = 64`), with fallback to POSIX `setrlimit` (`RLIMIT_AS`) and parent-death tracking via `prctl(PR_SET_PDEATHSIG, SIGKILL)`.
+* **Local IPC Transport**: Unix Domain Socket (`/run/netra/supervisor.sock` or `$XDG_RUNTIME_DIR/netra/supervisor.sock`) with mode `0600`, verifying peer PID/UID via `SO_PEERCRED`.
 
 ---
 
@@ -84,6 +86,8 @@ pub trait OSAdapter: Send + Sync {
 * **Socket & Process Table**: Queries via `sysctl` (`KERN_PROC`), `getifaddrs`, and BSD routing sockets via `nix`.
 * **Firewall Verification**: Inspects macOS Packet Filter (`pfctl -s info`).
 * **Key Storage**: Apple System Keychain via `security-framework` crate (`SecItemAdd` and `SecItemCopyMatching`).
+* **Resource Limitation & Isolation**: Bounded via POSIX `setrlimit` (`RLIMIT_AS` / `RLIMIT_RSS`).
+* **Local IPC Transport**: Unix Domain Socket (`/var/run/netra/supervisor.sock` or `~/Library/Caches/netra/supervisor.sock`) with mode `0600`, verifying peer UID via `getpeereid()` / `LOCAL_PEERCRED`.
 
 ---
 
@@ -97,7 +101,8 @@ pub trait OSAdapter: Send + Sync {
 | **`OBSERVE_TOPOLOGY`** | ★ `GetIpNetTable2` | ★ `ip neigh` / Netlink | ★ `sysctl` Routing Socket |
 | **`BROWSER_EXPOSURE`** | ★ Full Native Support | ★ Full Native Support | ★ Full Native Support |
 | **`SECURE_KEYRING`** | ★ Windows DPAPI | ★ SecretService API | ★ Apple Keychain |
-| **`AUTO_UPDATE`** | ★ Atomic Renaming | ★ Systemd Unit Swap | ★ Launchd Daemon Swap |
+| **`PROCESS_ISOLATION`** | ★ Win32 Job Objects | ★ cgroups v2 / setrlimit | ★ POSIX setrlimit |
+| **`LOCAL_IPC`** | ★ Named Pipes (SDDL) | ★ Unix Domain Socket (0600) | ★ Unix Domain Socket (0600) |
 
 ---
 
@@ -105,20 +110,34 @@ pub trait OSAdapter: Send + Sync {
 
 ```mermaid
 flowchart TD
-    subgraph Elevated["Elevated Daemon Context (Root / SYSTEM)"]
-        E1["Full Socket-to-PID Mapping"]
-        E2["Kernel Firewall Inspection & Remediation"]
-        E3["Direct Hardware Keyring Access"]
+    subgraph Elevated["Elevated Daemon Context (Root / Administrator)"]
+        E1["Full Cross-User Socket-to-PID Mapping"]
+        E2["Kernel Firewall Rules & Remediation"]
+        E3["Machine-Wide Hardware Keyring Access"]
     end
 
-    subgraph Unprivileged["Unprivileged User Context (Standard User)"]
-        U1["Own-Process Socket Inspection Only"]
-        U2["Read-Only Posture Audits"]
-        U3["User-Scoped Key Storage (DPAPI CurrentUser)"]
+    subgraph Unprivileged["Unprivileged User Context (Standard User Default)"]
+        U1["Own-Process Socket Inspection"]
+        U2["Read-Only System & Network Posture Audits"]
+        U3["User-Scoped Key Storage (DPAPI CurrentUser / SecretService)"]
+        U4["Job Object / cgroups / rlimit Process Containment"]
+        U5["Local IPC Server / Client Brokerage"]
     end
 
-    Elevated -- "Drop Privileges" --> Unprivileged
+    Elevated -- "Graceful Degradation" --> Unprivileged
 ```
+
+### OS Privilege & Resource Enforcement Matrix
+
+| Feature / Operation | Windows | Linux | macOS |
+| :--- | :--- | :--- | :--- |
+| **Supervisor User Context** | Standard User or SYSTEM service | Standard User or systemd root service | Standard User or root LaunchDaemon |
+| **Worker User Context** | Standard User (Restricted Token) | Dropped to `netra` unprivileged user | Dropped to `_nobody` user |
+| **Resource Isolation Metric** | Working Set / Memory Limit (Job Object) | `memory.current` / `memory.max` (cgroups v2) | Resident Set Size (setrlimit) |
+| **Parent-Death Cleanup** | `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` | `prctl(PR_SET_PDEATHSIG, SIGKILL)` | Disconnect watchdog timer |
+| **IPC Transport Type** | Tokio Named Pipe (`\\.\pipe\...`) | Tokio Unix Domain Socket (`.sock`) | Tokio Unix Domain Socket (`.sock`) |
+| **IPC Access Control** | SDDL DACL (`0600` equivalent) | File permissions mode `0600` | File permissions mode `0600` |
+| **Peer Credential API** | `GetNamedPipeClientProcessId` (PID check) | `getsockopt(SO_PEERCRED)` (PID+UID) | `getpeereid()` / `LOCAL_PEERCRED` (UID) |
 
 ---
 
@@ -171,9 +190,10 @@ flowchart TD
 | :--- | :--- | :--- | :--- |
 | **Interactive Terminal Stop (`Ctrl+C`)** | `CTRL_C_EVENT` captured via console handler | `SIGINT` captured via Tokio signal | `SIGINT` captured via Tokio signal |
 | **Console Break (`Ctrl+Break`)** | `CTRL_BREAK_EVENT` captured via console handler | `SIGINT` / `SIGQUIT` | `SIGINT` / `SIGQUIT` |
-| **Service / Container Stop (`SIGTERM`)** | N/A (Windows uses Service Control Manager in Phase 2.3) | `SIGTERM` captured (systemd, Docker, `kill <pid>`) | `SIGTERM` captured (launchd, `kill <pid>`) |
+| **Service / Container Stop (`SIGTERM`)** | N/A (Windows uses Service Control Manager or IPC Stop) | `SIGTERM` captured (systemd, Docker, `kill <pid>`) | `SIGTERM` captured (launchd, `kill <pid>`) |
 | **Hard Process Kill** | `TerminateProcess` / `taskkill /F` (Immediate OS kill, uncatchable) | `SIGKILL` / `kill -9` (Immediate kernel kill, uncatchable) | `SIGKILL` / `kill -9` (Immediate kernel kill, uncatchable) |
 | **Graceful Teardown Execution** | Reverse component teardown with 5000ms timeout guard | Reverse component teardown with 5000ms timeout guard | Reverse component teardown with 5000ms timeout guard |
 | **Shutdown Idempotency** | Multiple shutdown triggers execute safely as no-ops | Multiple shutdown triggers execute safely as no-ops | Multiple shutdown triggers execute safely as no-ops |
 | **Signal-Lifecycle Isolation** | Pure signal notification $\to$ internal broadcast channel | Pure signal notification $\to$ internal broadcast channel | Pure signal notification $\to$ internal broadcast channel |
+
 

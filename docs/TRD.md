@@ -60,7 +60,10 @@ flowchart LR
     end
 ```
 
-* **Process Isolation**: The background worker process is executed within an OS-level sandbox (Windows Job Object with 100MB memory ceiling; Linux `cgroups v2` with `CPUQuota=20%`).
+* **Process Isolation & Privilege Model**:
+  - The background worker process is executed with dropped user privileges and constrained by platform-native resource limiters (Windows Job Objects with configurable memory ceiling [default 100MB]; Linux `cgroups v2` / `setrlimit` with `memory.max` and `cpu.max` quotas).
+  - The supervisor runs with the minimum privilege necessary (standard user context by default; elevates only if running as an explicitly configured system service).
+  - Bounded resource controls are configurable via `NetraConfig.runtime` (`worker_memory_limit_bytes`, `restart_delay_ms`, `max_consecutive_crashes`).
 
 ---
 
@@ -77,17 +80,28 @@ flowchart LR
 
 ## 4. Transport & Protocol Specifications
 
+### 4.1 Cloud Coordination Transport (Phase 6)
 * **Primary Channel**: Bidirectional **WebSocket over TLS 1.3 (WSS)** with **Protocol Buffers v3**.
 * **Fallback Channel**: Authenticated HTTPS REST Long Polling (`POST /v1/agent/poll`).
 * **Heartbeat Cadence**: Ping/Pong frame every 15 seconds. Disconnection declared after 45 seconds of missed heartbeats.
 * **Network Traversal**: 100% outbound connections. Endpoints require zero open inbound firewall ports.
+
+### 4.2 Internal Local IPC Protocol Specifications (Phase 2.3)
+* **Transport**: Windows Named Pipes (`\\.\pipe\netra-supervisor-ipc`) / Unix Domain Sockets (`/run/netra/supervisor.sock` or `$XDG_RUNTIME_DIR/netra/supervisor.sock`).
+* **Access Control**: Strict OS DACLs (`0600` / restricted SDDL) ensuring access exclusively by the process owner.
+* **Wire Framing**: 4-byte unsigned big-endian length prefix followed by UTF-8 encoded JSON envelope.
+* **Frame Size Guard**: Maximum 1MB (`1,048,576` bytes) payload limit to prevent heap exhaustion.
+* **Authentication**: Dual-gated verification (OS peer PID/UID kernel verification + single-use 256-bit CSPRNG token).
+* **Handshake Deadline**: Client must complete authenticated handshake within 3.0 seconds of socket connection.
+* **Heartbeat & Watchdog**: Worker sends telemetry heartbeat every 5.0 seconds; supervisor declares worker hung if missing for 15.0 seconds.
+* **Crash Recovery**: Sub-2s auto-restart for isolated crash; exponential backoff ($2\text{s} \to 4\text{s} \to 8\text{s}$) and 5-crash circuit breaker per 300s window.
 
 ---
 
 ## 5. Cryptographic Identity & Attestation Specifications
 
 * **Algorithm**: **Ed25519 (RFC 8032)** asymmetric public-key signature standard.
-* **Key Storage**: Machine-level protected keyring; private key is never written to unencrypted plaintext disk files.
+* **Key Storage**: Machine or user-level protected keyring (DPAPI / SecretService / Keychain); private key is never written to unencrypted plaintext disk files.
 * **Replay Protection**:
   - Timestamp verification window: $\pm 300\text{ s}$ from server UTC.
   - In-memory sliding-window nonce cache: Rejects identical nonces within 600 seconds.

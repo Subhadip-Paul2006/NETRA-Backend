@@ -51,14 +51,14 @@ flowchart LR
 ```mermaid
 flowchart TD
     subgraph Host["Monitored Endpoint Host (Windows / Linux / macOS)"]
-        Supervisor["NETRA Supervisor Daemon (Rust / SYSTEM / Root)"]
-        Worker["NETRA Sandboxed Worker Process (Rust)"]
+        Supervisor["NETRA Tier-1 Supervisor Daemon<br/>(Least-Privilege Default / Watchdog / IPC Broker)"]
+        Worker["NETRA Tier-2 Isolated Worker<br/>(Low-Privilege / Resource-Bounded)"]
         SQLite[("Local SQLite WAL DB<br/>(Encrypted State & FIFO Queue)")]
-        CLI["netra CLI Tool (Rust / clap)"]
+        CLI["netra CLI Tool (Rust / clap Launcher)"]
         
-        Supervisor <-->|Local IPC| Worker
+        Supervisor <-->|Authenticated Local IPC (0600 DACLs)| Worker
         Worker <--> SQLite
-        CLI <-->|Local Query / IPC| Worker
+        CLI <-->|Local Query / IPC Relay| Supervisor
     end
 
     subgraph Cloud["Central Control Plane (Optional Cloud Coordination)"]
@@ -140,10 +140,11 @@ flowchart TD
    - **Process Supervision & OS Daemon Units**: Service Control Manager, systemd slices, launchd daemons, Job Objects, cgroups sandboxing, and local IPC sockets (strictly owned by Phase 2.3 daemon).
    - **Concrete Scanner Implementations**: Socket probes, process monitors, and firewall rule inspectors (strictly owned by Phase 7 scanners).
 
-3. **Why `netra-cli` Does NOT Own the Runtime Lifecycle**:
-   - `netra-cli` is merely one of multiple possible invocation frontends (interactive CLI vs. background service daemon vs. embedded library).
-   - If CLI owned the runtime lifecycle, the background service daemon (Phase 2.3) or worker process would either have to depend directly on the CLI presentation crate (violating layering) or duplicate the runtime state machine.
-   - By housing runtime coordination in `netra-core`, both CLI commands and background daemons reuse the exact same deterministic lifecycle engine without code duplication.
+3. **Why `netra-cli` Does NOT Own the Runtime Lifecycle or Supervisor Daemon**:
+   - `netra-cli` is merely a user-facing invocation frontend and CLI presentation harness (parsing arguments, splitting `stdout`/`stderr`, formatting JSON/ANSI).
+   - `netra-core` owns the domain-neutral runtime state machine, lifecycle contracts, IPC message definitions, and watchdog policies.
+   - `netra-platform` owns the native OS transport implementations (Named Pipes / Unix Domain Sockets) and resource isolation handles (Job Objects, cgroups/setrlimit).
+   - The CLI crate remains lightweight and delegates service startup to the underlying core/platform layers rather than bloating the CLI binary into a monolithic daemon.
 
 4. **Why OS-Specific Implementations Do NOT Own the Runtime Lifecycle**:
    - Operating system APIs vary drastically across Windows, Linux, and macOS, but lifecycle orchestration (initialization, healthy operation, degradation, reverse teardown) is 100% platform-invariant.
@@ -155,27 +156,60 @@ flowchart TD
    - Subsystems register into `RuntimeCoordinator` via `coordinator.register_component(Arc::new(subsystem))`.
    - The coordinator manages initialization, health aggregation, and reverse graceful teardown without requiring any subsystem-specific knowledge in `netra-core`.
 
-### Subsystem Boundaries & Python Extension Layer
+### Least-Privilege Separation & Isolation Boundary
+
+NETRA enforces the fundamental security principle: **Start with minimum privilege necessary and elevate only where a specific capability genuinely requires it.**
 
 ```mermaid
 flowchart TD
-    subgraph RustCore["NETRA RUST SYSTEMS CORE (Primary / Mandatory)"]
-        R1["Supervisor Daemon & Worker Watchdog"]
-        R2["Async Tokio Event Loop & Schedulers"]
-        R3["Native OS Syscalls (Win32 / Netlink / BSD)"]
-        R4["Local SQLite WAL Persistence (rusqlite)"]
-        R5["Ed25519 Cryptography & Outbound WSS"]
-        R6["Deterministic Rule Evaluation Engine"]
+    subgraph Tier1["Tier-1 Supervisor (Least-Privilege by Default)"]
+        S1["Watchdog Monitoring & Process Health"]
+        S2["Local IPC Server (0600 DACLs / Peer Auth)"]
+        S3["Child Process Lifecycle Management"]
+        S4["Resource Limitation Enforcement (Job Objects / cgroups)"]
     end
 
-    subgraph PythonLayer["PYTHON EXTENSION LAYER (Optional / Specifically Justified)"]
-        PY1["Advisory LLM Prompt Sanitization & Air-Gap Gateway"]
-        PY2["Advanced Graph Analytics Research Scripts"]
-        PY3["Offline Heuristic Rule Experimentation Tooling"]
+    subgraph Tier2["Tier-2 Worker (Unprivileged Userspace)"]
+        W1["Async Tokio Event Loop & Task Schedulers"]
+        W2["Local Rule Evaluation Engine"]
+        W3["Local SQLite State Buffering"]
+        W4["Outbound TLS 1.3 Streaming (Phase 6)"]
     end
 
-    RustCore -->|Sanitized JSON Data Feed / Air-Gapped IPC| PythonLayer
+    subgraph PrivHelpers["Future Privileged Isolation (Phases 7 & 12)"]
+        H1["Narrowly Scoped Capability Helpers"]
+        H2["Kernel Firewall Rules (INetFwPolicy2 / nftables)"]
+        H3["Full Cross-User Socket Inspection"]
+    end
+
+    Tier1 <-->|Length-Delimited Authenticated IPC| Tier2
+    Tier1 -.->|On-Demand Elevation (Optional)| PrivHelpers
 ```
+
+#### Privilege Responsibility Breakdown
+
+| Operation / Subsystem | Privilege Required | Execution Context | Behavior When Unprivileged |
+| :--- | :--- | :--- | :--- |
+| **Supervisor Watchdog & Lifecycle** | **None** (Standard User) | Tier-1 Supervisor | Runs seamlessly in user context or user daemon session |
+| **Worker Process Spawning** | **None** (Standard User) | Tier-1 Supervisor | Spawns standard user child process |
+| **Local IPC (Named Pipes / Sockets)** | **None** (User-scoped DACL) | Supervisor $\leftrightarrow$ Worker | Creates user-owned pipe or `$XDG_RUNTIME_DIR` socket with `0600` permissions |
+| **Resource Limitation (Job Objects)** | **None** (Standard User on Windows) | Platform Sandbox | Windows allows standard users to assign Job Objects to own child processes |
+| **Resource Limitation (POSIX rlimit)** | **None** (Standard User on Unix) | Platform Sandbox | Lowering resource limits requires zero root privileges |
+| **Local SQLite WAL Access** | **None** (User Filesystem) | Tier-2 Worker | Stores database in user-writable `%LOCALAPPDATA%` or `~/.local/share/netra` |
+| **Full Cross-User Socket-to-PID Mapping** | Elevated (Admin / Root / CAP_NET_ADMIN) | Phase 7 Scanner | Gracefully degrades to own-process socket inspection |
+| **Host Firewall Profile Remediation** | Elevated (Admin / Root) | Phase 12 Remediation | Pre-flight check rejects write actions; returns `ELEVATION_REQUIRED` error |
+
+#### Terminology: Process & Resource Isolation vs. Full Sandboxing
+
+To maintain strict scientific and security accuracy, NETRA distinguishes between tiers of process containment:
+
+1. **Resource Limitation (`IMPLEMENTED IN PHASE 2.3`)**: Bounding CPU quotas and memory ceilings via Windows Job Objects, Linux cgroups v2, or POSIX `setrlimit`.
+2. **Process Lifecycle Isolation (`IMPLEMENTED IN PHASE 2.3`)**: Preventing orphan processes and zombies via `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, `prctl(PR_SET_PDEATHSIG)`, and IPC disconnection watchdogs.
+3. **Privilege Reduction (`IMPLEMENTED IN PHASE 2.3`)**: Running the worker under an unprivileged user token or standard user context with restricted tokens.
+4. **Transport Access Enforcement (`IMPLEMENTED IN PHASE 2.3`)**: Strict OS DACLs (`0600`) and peer credential verification preventing unauthorized local process IPC connections.
+5. **Filesystem Isolation (`DEFERRED`)**: Restricting disk read/write paths via namespaces/chroot/AppContainer (deferred to future hardening).
+6. **Syscall Filtering (`DEFERRED`)**: Restricting kernel syscalls via seccomp-bpf or macOS Seatbelt profiles (deferred to Phase 14).
+7. **Full Sandboxing (`DEFERRED`)**: Comprehensive multi-layer sandbox equivalent to browser isolation engines.
 
 ---
 
@@ -204,31 +238,21 @@ stateDiagram-v2
     STOPPED --> [*]
 ```
 
-### State Model Capabilities vs. Implemented Runtime Behavior (Phase 2.2 Boundary)
-
-To prevent architectural ambiguity, NETRA explicitly differentiates between the state model's transition capabilities and active runtime features implemented in Phase 2.2:
-
-* **State Model Capability (`netra-core::runtime::state`)**:
-  - The `RuntimeState` transition rules structurally permit `DEGRADED -> RUNNING`, `RUNNING -> DEGRADED`, and `DEGRADED -> STOPPING`.
-  - This establishes the mathematical validity of self-healing and recovery transitions without requiring breaking state-machine redesigns in future phases.
-* **Implemented Runtime Behavior (Phase 2.2)**:
-  - Phase 2.2 implements the in-process lifecycle coordinator (`RuntimeCoordinator`), component lifecycle registration (`ComponentLifecycle`), deterministic start/stop ordering, reverse teardown, and on-demand health auditing (`coordinator.health().await`).
-  - **Deferred**: Automated background health monitoring loops, periodic heartbeat probes, and autonomous `DEGRADED -> RUNNING` recovery actions are deferred to **Phase 2.3** (Supervisor watchdog process) and **Phase 16** (Reliability & Observability).
-
-### Dual Runtime Execution Modes
+### Dual Runtime Execution Modes & Privilege Strategy
 
 ```mermaid
 flowchart TD
     subgraph RuntimeModes["Runtime Execution Modes"]
         direction TB
-        subgraph Mode1["1. Interactive CLI Mode (netra scan)"]
-            CLIExec["User executes CLI command"] --> LocalEngine["Run in-process scanner OR query local daemon"]
+        subgraph Mode1["1. Interactive CLI Mode (netra scan / netra status)"]
+            CLIExec["User executes CLI command"] --> LocalEngine["Run in-process scanner OR query local daemon via IPC"]
             LocalEngine --> StreamSplit["Split Streams: stdout (JSON data) / stderr (ANSI UI)"]
         end
         
-        subgraph Mode2["2. Continuous Daemon Mode (netra service)"]
-            ServiceExec["OS starts background unit (systemd / Windows SCM)"] --> SupDaemon["Supervisor manages watchdog & sandboxed worker"]
-            SupDaemon --> StreamOut["Maintain persistent WSS stream to Control API"]
+        subgraph Mode2["2. Continuous Service Mode (netra service run)"]
+            ServiceExec["User / OS starts service unit"] --> SupDaemon["Tier-1 Supervisor runs (User daemon OR System daemon)"]
+            SupDaemon --> SpawnWorker["Spawn Tier-2 Low-Privilege Worker with Resource Limits"]
+            SpawnWorker --> LocalIPC["Maintain Authenticated Local IPC Link"]
         end
     end
 ```
@@ -369,9 +393,9 @@ flowchart TD
         UnenrolledHost["Unenrolled Machine"]
     end
 
-    subgraph HostDACL["Host Trust Boundary (DACL 0600)"]
-        Supervisor["Supervisor (Rust / Elevated)"]
-        Worker["Worker (Rust / Sandboxed)"]
+    subgraph HostDACL["Host Trust Boundary (Local IPC / 0600 DACLs)"]
+        Supervisor["Supervisor (Least-Privilege Default / Watchdog)"]
+        Worker["Worker (Low-Privilege / Resource-Bounded)"]
     end
 
     subgraph CloudBoundary["Control Plane Trust Boundary"]
@@ -399,3 +423,6 @@ flowchart TD
 | **ADR-005** | Third-Party Integrations | **Slack (Async Gateway) / Discord (Outbound Webhook)** | Discord as Primary Control Plane | Discord lacks enterprise RBAC and SSO. Positioned strictly as optional notification plugins. |
 | **ADR-006** | Python Subsystem Scope | **Scoped Optional Extension Layer** | Python Monorepo / Python-First Runtime | Confines Python strictly to advisory LLM interfaces and research analytics; eliminates PyInstaller bloat and Python runtime crashes on endpoints. |
 | **ADR-007** | Runtime Lifecycle Ownership | **Domain-Neutral Core (`netra-core::runtime`)** | CLI-Owned Runtime or Platform-Owned Runtime | Decouples lifecycle state orchestration from presentation (CLI) and OS syscalls (Platform). Enables uniform lifecycle management across interactive CLI, background daemon, and worker sandboxes without circular dependencies. |
+| **ADR-008** | Privilege Separation & Least-Privilege by Default | **Least-Privilege Execution with Graceful Degradation** | Monolithic Elevated Daemon (Always SYSTEM / root) | Minimizes attack surface. The supervisor and worker execute under standard user privileges by default, applying OS resource limits without requiring administrator rights. Privileged capabilities are isolated to narrowly scoped helpers in later phases. |
+| **ADR-009** | Local IPC Wire Protocol & Mutual Authentication | **Length-Delimited JSON over Named Pipes / UDS with Dual-Gated Auth** | Plain Unauthenticated Pipes / HTTP on Localhost | Avoids opening TCP ports on localhost. Combines kernel-level peer PID/UID verification (`SO_PEERCRED` / `GetNamedPipeClientProcessId`) with ephemeral 256-bit secret tokens to guarantee tamper-proof local IPC. |
+
