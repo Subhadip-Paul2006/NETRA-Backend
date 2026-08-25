@@ -1,8 +1,12 @@
-//! Process isolation and resource limitation containers.
-
+#[cfg(any(
+    target_os = "linux",
+    not(any(target_os = "windows", target_os = "macos"))
+))]
 pub mod linux;
+#[cfg(target_os = "macos")]
 pub mod macos;
 pub mod traits;
+#[cfg(target_os = "windows")]
 pub mod windows;
 
 pub use traits::ProcessIsolation;

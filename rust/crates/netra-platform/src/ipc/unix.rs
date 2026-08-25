@@ -73,11 +73,8 @@ impl IpcServer for UnixDomainSocketServer {
             .await
             .map_err(|e| NetraError::platform(format!("Unix socket accept failed: {}", e)))?;
 
-        let mut peer_pid = None;
-        let mut peer_uid = None;
-
         #[cfg(target_os = "linux")]
-        {
+        let (peer_pid, peer_uid) = {
             use std::os::unix::io::AsRawFd;
             let fd = stream.as_raw_fd();
             let mut ucred: libc::ucred = unsafe { std::mem::zeroed() };
@@ -92,15 +89,21 @@ impl IpcServer for UnixDomainSocketServer {
                 )
             };
             if ret == 0 {
-                peer_pid = Some(ucred.pid as u32);
-                peer_uid = Some(ucred.uid);
+                let pid = ucred.pid as u32;
+                let uid = ucred.uid;
                 debug!(
-                    pid = peer_pid,
-                    uid = peer_uid,
+                    pid = pid,
+                    uid = uid,
                     "Retrieved SO_PEERCRED from Unix Domain Socket"
                 );
+                (Some(pid), Some(uid))
+            } else {
+                (None, None)
             }
-        }
+        };
+
+        #[cfg(not(target_os = "linux"))]
+        let (peer_pid, peer_uid): (Option<u32>, Option<u32>) = (None, None);
 
         let framed = Framed::new(stream, IpcCodec::new());
         let credentials = PeerCredentials {
