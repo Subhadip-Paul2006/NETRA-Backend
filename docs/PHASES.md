@@ -190,7 +190,7 @@ flowchart TD
 
 ## 10. Phase 6: Device Identity, OS-Protected Key Management & WSS Protocol
 
-* **Status**: `PLANNED & APPROVED`
+* **Status**: `COMPLETED & VERIFIED`
 * **Goal**: Implement cryptographic device identity, OS-protected private-key storage (DPAPI / Secret Service / Keychain), client-side enrollment protocol, canonical request signing, and outbound WebSocket over TLS 1.3 (WSS) streaming in Rust.
 * **Scope**:
   - Stable `DeviceId` model (`dev_<uuidv7>`) distinct from MAC/hostnames.

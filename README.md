@@ -163,7 +163,7 @@ flowchart TD
 ## 7. Open-Source Status, Acknowledgements & License
 
 * **Open-Source Status**: Active Academic & Research Project.
-* **Development Status**: **Phase 0**, **Phase 1**, and **Phase 2 (Core Runtime, Lifecycle & Process Isolation)** are `COMPLETED`. **Phase 3 (Local SQLite Engine & State Management)** is in architectural review. Implementation proceeds strictly along the milestone roadmap in [docs/PHASES.md](./docs/PHASES.md).
+* **Development Status**: **Phase 0** through **Phase 6** (**Device Identity, Ed25519 Cryptography, OS KeyStore, Request Signing, Two-Stage Enrollment, Key Rotation & WSS Protocol**) are `COMPLETED & VERIFIED`. Implementation proceeds strictly along the milestone roadmap in [docs/PHASES.md](./docs/PHASES.md).
 * **License**: `License: To be selected.` (Apache 2.0 / MIT candidate pending final packaging).
 * **Acknowledgements & Academic References**:
   - [osquery](https://osquery.io/) — Conceptual inspiration for OS table abstractions.
