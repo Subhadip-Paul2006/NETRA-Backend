@@ -3,13 +3,16 @@
 //! Native operating system collectors for security posture telemetry.
 
 pub mod firewall;
+#[allow(dead_code)]
 pub mod linux;
+#[allow(dead_code)]
 pub mod macos;
 pub mod os_config;
 pub mod process;
 pub mod services;
 pub mod socket;
 pub mod users;
+#[allow(dead_code)]
 pub mod windows;
 
 pub use firewall::PlatformFirewallScanner;

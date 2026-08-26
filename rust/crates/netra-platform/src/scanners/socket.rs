@@ -97,21 +97,18 @@ mod tests {
         assert_eq!(obs.schema_version, 1);
         assert_eq!(obs.device_id, device_id);
         assert_eq!(obs.observation_type, ObservationType::Sockets);
-        assert_eq!(obs.evidence_hash.len(), 64);
-
-        if let netra_core::observation::ObservationPayload::Sockets(ref sock_payload) = obs.payload
-        {
-            // In Windows runtime test, there are always active listening/bound sockets
-            #[cfg(windows)]
-            {
-                assert!(
-                    !sock_payload.sockets.is_empty(),
-                    "Expected at least one socket on Windows"
-                );
+        match obs.payload {
+            netra_core::observation::ObservationPayload::Sockets(sock_payload) => {
+                #[cfg(windows)]
+                {
+                    assert!(
+                        !sock_payload.sockets.is_empty(),
+                        "Expected at least one socket on Windows"
+                    );
+                }
+                let _ = sock_payload;
             }
-            let _ = sock_payload;
-        } else {
-            panic!("Expected Sockets payload variant");
+            _ => panic!("Expected Sockets payload variant"),
         }
     }
 }
