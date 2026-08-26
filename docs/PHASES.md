@@ -195,12 +195,14 @@ flowchart TD
 * **Scope**:
   - Stable `DeviceId` model (`dev_<uuidv7>`) distinct from MAC/hostnames.
   - Ed25519 keypair generation and memory zeroization via `ed25519-dalek` and `zeroize`.
-  - OS-Protected `KeyStore` trait: Win32 DPAPI, Apple Keychain, Linux Secret Service with fail-safe `ERR_KEYSTORE_UNAVAILABLE` on headless servers (no weak machine-id key derivation).
+  - OS-Protected `KeyStore` trait: Win32 DPAPI (`NATIVE TESTED`), Apple Keychain (`NOT NATIVE TESTED`), Linux Secret Service with fail-safe `ERR_KEYSTORE_UNAVAILABLE` on headless servers (no weak machine-id key derivation).
+  - Development KeyStore (`insecure-dev-keystore`) strictly compile-time gated for isolated CI tests, completely absent in release binaries; Phase 7 and future production capabilities MUST NOT depend on this backend.
   - Client-side enrollment challenge-response proof-of-possession against mock test fixtures.
   - Deterministic line-delimited request signing (`StringToSign`) and consolidated replay defense.
   - Policy-driven key rotation state machine (`ACTIVE` $\to$ `ROTATION_PENDING` $\to$ `NEW_KEY_VERIFIED` $\to$ `ACTIVE` $\to$ `RETIRED`).
   - Persistent outbound WSS client over TLS 1.3 (`tokio-tungstenite` + `rustls`) with Canonical JSON framing.
 * **Exit Gate**: 100% of cryptographic unit tests pass; replay attacks with stale timestamp (>300s) or duplicated nonces are rejected with HTTP 401; KeyStore safely stores and scrubs private keys.
+
 
 ---
 

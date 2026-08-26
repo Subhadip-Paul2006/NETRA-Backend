@@ -202,13 +202,15 @@ Total Phase 2.2 graceful shutdown budget: Bounded by 5000ms global timeout.
 
 ## 10. Evidence-Based OS KeyStore Environment Matrix (Phase 6)
 
-| Platform & Environment | Primary Backend | Protection Boundary | Hardware Backing | Headless / Service Support | User-Session Requirement | Failure Behavior & Limitations |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Windows Workstation** | Win32 DPAPI (`CryptProtectData`) | User master key derived from user credentials | Optional (TPM-bound if BitLocker is enabled) | Supported for interactive and background processes | Tied to active user account context | Returns `ERR_KEYSTORE_UNAVAILABLE` on cryptographic subsystem failure. |
-| **Windows Server Core** | Win32 DPAPI (`CryptProtectData`) | Machine or Service SID master key | Optional (vTPM / TPM) | Fully supported in headless Server Core | Usable by `LocalSystem` / `NetworkService` | Must use `CRYPTPROTECT_LOCAL_MACHINE` or service account scope. |
-| **macOS Desktop** | Apple Keychain (`SecItemAdd`) | AES-256 encrypted login keychain | Hardware Secure Enclave (Apple Silicon / T2) | Supported in user sessions | Requires unlocked user session keychain | Fails with `ERR_KEYSTORE_UNAVAILABLE` if keychain is locked and inaccessible. |
-| **Linux Desktop (GNOME/KDE)** | Freedesktop Secret Service (D-Bus) | User login keyring encrypted by PAM password | No (Software daemon; TPM non-standard) | Supported in active desktop sessions | Requires running D-Bus session bus and unlocked keyring | Fails with `ERR_KEYSTORE_UNAVAILABLE` if D-Bus service is unreachable. |
-| **Linux Headless / Server** | **Fail-Safe Policy** (Explicit Error) | N/A | N/A | Supported only when an explicit OS secret provider is configured | No D-Bus session | **Fail-Safe**: Returns `ERR_KEYSTORE_UNAVAILABLE`. No weak pseudo-encryption fallback (e.g. `/etc/machine-id` derivation is prohibited). Development mock backend is compile-time gated behind `#[cfg(feature = "insecure-dev-keystore")]` and uncompilable in release builds. |
+| Platform & Environment | Primary Backend | Backend Classification | Verification Status | Protection Boundary | Failure Behavior & Limitations |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Windows Workstation** | Win32 DPAPI (`CryptProtectData`) | `Production-Supported` | **NATIVE TESTED** | User master key derived from user credentials | Returns `ERR_KEYSTORE_UNAVAILABLE` on cryptographic subsystem failure. |
+| **Windows Server Core** | Win32 DPAPI (`CryptProtectData`) | `Production-Supported` | **NATIVE TESTED** | Machine or Service SID master key (`LocalSystem`) | Must use `CRYPTPROTECT_LOCAL_MACHINE` or service account scope. |
+| **macOS Desktop** | Apple Keychain (`SecItemAdd`) | `Production-Supported` | **NOT NATIVE TESTED** | AES-256 encrypted login keychain | Fails with `ERR_KEYSTORE_UNAVAILABLE` if keychain is locked and inaccessible. |
+| **Linux Desktop (GNOME/KDE)** | Freedesktop Secret Service (D-Bus) | `Production-Supported` | **NOT NATIVE TESTED** | User login keyring encrypted by PAM password | Fails with `ERR_KEYSTORE_UNAVAILABLE` if D-Bus service is unreachable. |
+| **Linux Headless / Server** | **Fail-Safe Policy** (Explicit Error) | `Production-Supported` | **NATIVE TESTED (Fail-Safe)** | Fail-closed policy (no weak machine-id fallback) | **Fail-Safe**: Returns `ERR_KEYSTORE_UNAVAILABLE`. No weak pseudo-encryption fallback. |
+| **Development CI / Mock** | `insecure-dev-keystore` | `Development-Only` | **TESTED (Feature-Gated)** | Local isolated filesystem directory | **STRICT DEVELOPMENT BOUNDARY**: Guarded behind `#[cfg(feature = "insecure-dev-keystore")]`. Completely omitted in release builds. MUST NOT be used in production. Phase 7 and future production functionality MUST NOT depend on this backend. |
+
 
 ---
 

@@ -269,4 +269,17 @@ netra identity rotate
 netra identity rotate --emergency
 ```
 
+### 13.1 Production vs Development KeyStore Policy
+
+> [!IMPORTANT]
+> **Production KeyStore Requirement & Fail-Safe Behavior**:
+> - In standard production deployments, private keys are strictly managed by native OS key storage (`Windows DPAPI` on Windows, `Freedesktop Secret Service` on Linux desktop, `Apple Keychain` on macOS).
+> - On headless Linux servers without a configured secret provider (e.g. D-Bus Secret Service), identity operations intentionally **fail closed** with `ERR_KEYSTORE_UNAVAILABLE`.
+> - **Insecure Development Backend (`--insecure-dev-keystore`)**:
+>   - Exclusively available in development/test builds compiled with `--features insecure-dev-keystore`.
+>   - **Completely absent and rejected** in standard release binaries.
+>   - MUST NOT be enabled, configured, or relied upon in production environments.
+>   - Phase 7 and future production capabilities strictly require production OS key storage.
+
+
 

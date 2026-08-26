@@ -164,6 +164,11 @@ flowchart TD
 
 * **Open-Source Status**: Active Academic & Research Project.
 * **Development Status**: **Phase 0** through **Phase 6** (**Device Identity, Ed25519 Cryptography, OS KeyStore, Request Signing, Two-Stage Enrollment, Key Rotation & WSS Protocol**) are `COMPLETED & VERIFIED`. Implementation proceeds strictly along the milestone roadmap in [docs/PHASES.md](./docs/PHASES.md).
+* **KeyStore & Platform Verification**:
+  - **Windows (x86_64)**: `IMPLEMENTED / NATIVE TESTED` (Win32 DPAPI).
+  - **Linux (x86_64 / aarch64)**: `IMPLEMENTED / NOT NATIVE TESTED` (D-Bus Secret Service; fails closed with `ERR_KEYSTORE_UNAVAILABLE` on headless servers without a secret provider).
+  - **macOS (Apple Silicon / Intel)**: `IMPLEMENTED / NOT NATIVE TESTED` (Apple Keychain stub).
+  - **Development-Only Backend**: `insecure-dev-keystore` is strictly compile-time gated for isolated CI/testing (`#[cfg(feature = "insecure-dev-keystore")]`), completely absent in release binaries, and MUST NOT be used in production. Phase 7 and future capabilities strictly require production OS key storage.
 * **License**: `License: To be selected.` (Apache 2.0 / MIT candidate pending final packaging).
 * **Acknowledgements & Academic References**:
   - [osquery](https://osquery.io/) — Conceptual inspiration for OS table abstractions.
@@ -171,3 +176,4 @@ flowchart TD
   - [Drishti-Innofusion](https://github.com/soumyachk101/Drishti-Innofusion/) — Reference project evaluated for browser exposure and multi-workstation observations.
   - [The Update Framework (TUF)](https://theupdateframework.io/) — Reference for cryptographic software update resilience.
 * **Responsible Security Disclosure**: If you discover a security vulnerability within NETRA, please contact the maintainers via private security disclosure channels rather than opening a public issue.
+

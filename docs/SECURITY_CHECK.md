@@ -76,7 +76,17 @@ Every enrolled agent host is identified by an **Ed25519 (RFC 8032)** asymmetric 
   - **Windows**: Protected via Win32 DPAPI (`CryptProtectData`) using user or machine master key scope.
   - **Linux**: Stored via Freedesktop Secret Service API over D-Bus. In headless environments without a secret provider, the system fails safely with `ERR_KEYSTORE_UNAVAILABLE` (no weak pseudo-encryption from public host identifiers like `/etc/machine-id`).
   - **macOS**: Stored in Apple Keychain Services (`SecItemAdd`) with explicit access control lists.
-  - **Compile-Time Gated Development Backend**: A file-based mock KeyStore is guarded behind `#[cfg(feature = "insecure-dev-keystore")]`. In standard/release builds, the flag is not compiled in and cannot be activated via CLI, environment variables, or config files. When active in debug tests, it emits an unavoidable high-priority security alert log.
+  - **Compile-Time Gated Development Backend (`insecure-dev-keystore`)**:
+    - **Development/CI Only**: Strictly reserved for isolated unit/integration tests and headless CI automation.
+    - **Prohibited in Production**: MUST NOT be deployed, compiled into release binaries, or used in production environments under any circumstances.
+    - **Phase 7+ Decoupling**: Phase 7 and all future capabilities MUST NOT depend on or activate this backend in production builds.
+    - **Fail-Closed Principle**: Production/headless Linux lacking a supported OS Secret Service must fail closed with `ERR_KEYSTORE_UNAVAILABLE`.
+    - **Isolation**: When active in debug builds with the compile-time flag, it isolates test keys into temporary namespaces and emits a prominent high-severity warning log.
+* **KeyStore Implementation & Verification Matrix**:
+  - **Windows (x86_64)**: `Production-Supported` | `NATIVE TESTED` (Win32 DPAPI)
+  - **Linux (x86_64 / aarch64)**: `Production-Supported` | `NOT NATIVE TESTED` (Secret Service; fail-safe closed)
+  - **macOS (Apple Silicon / Intel)**: `Production-Supported` | `NOT NATIVE TESTED` (Keychain Services)
+  - **Insecure Dev Keystore**: `Development-Only` | `TESTED (Feature Gated)`
 * **Memory Clearing & Limits**: Volatile memory buffers holding private key seed material implement `ZeroizeOnDrop` via `zeroize::Zeroizing<T>` to scrub memory when dropped, mitigating residual secret lifetime in RAM. (Realistic OS limits: unprivileged user-space zeroization cannot control OS swap/hibernation files or temporary kernel FFI buffers).
 * **Two-Stage Authentication Boundary**:
   - **Stage 1 (Bootstrap Enrollment)**: Authenticated exclusively via a single-use operator bootstrap token (15-minute TTL, held strictly in volatile RAM, never persisted to disk, permanently consumed upon completion) and a structured `ProofOfPossession` challenge signature (`NETRA_PROOF_OF_POSSESSION_V1`).
