@@ -26,13 +26,13 @@ impl ProcessIsolation for MacOSProcessIsolation {
         "macOS POSIX setrlimit"
     }
 
-    fn configure_command(&self, _cmd: &mut tokio::process::Command) -> Result<(), NetraError> {
+    fn configure_command(&self, cmd: &mut tokio::process::Command) -> Result<(), NetraError> {
         #[cfg(target_os = "macos")]
         {
             use std::os::unix::process::CommandExt;
             let mem_limit = self.memory_limit_bytes;
             unsafe {
-                _cmd.pre_exec(move || {
+                cmd.pre_exec(move || {
                     let rlim = libc::rlimit {
                         rlim_cur: mem_limit,
                         rlim_max: mem_limit,
@@ -41,6 +41,10 @@ impl ProcessIsolation for MacOSProcessIsolation {
                     Ok(())
                 });
             }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = cmd;
         }
         Ok(())
     }

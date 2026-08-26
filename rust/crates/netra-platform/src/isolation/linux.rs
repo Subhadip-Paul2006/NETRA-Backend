@@ -26,13 +26,13 @@ impl ProcessIsolation for LinuxProcessIsolation {
         "Linux cgroups v2 / setrlimit"
     }
 
-    fn configure_command(&self, _cmd: &mut tokio::process::Command) -> Result<(), NetraError> {
+    fn configure_command(&self, cmd: &mut tokio::process::Command) -> Result<(), NetraError> {
         #[cfg(target_os = "linux")]
         {
             use std::os::unix::process::CommandExt;
             let mem_limit = self.memory_limit_bytes;
             unsafe {
-                _cmd.pre_exec(move || {
+                cmd.pre_exec(move || {
                     // Enforce memory address space limit
                     let rlim = libc::rlimit {
                         rlim_cur: mem_limit,
@@ -45,6 +45,10 @@ impl ProcessIsolation for LinuxProcessIsolation {
                     Ok(())
                 });
             }
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = cmd;
         }
         Ok(())
     }
