@@ -196,9 +196,23 @@ flowchart TD
 | **Shutdown Idempotency** | Multiple shutdown triggers execute safely as no-ops | Multiple shutdown triggers execute safely as no-ops | Multiple shutdown triggers execute safely as no-ops |
 | **Signal-Lifecycle Isolation** | Pure signal notification $\to$ internal broadcast channel | Pure signal notification $\to$ internal broadcast channel | Pure signal notification $\to$ internal broadcast channel |
 
+Total Phase 2.2 graceful shutdown budget: Bounded by 5000ms global timeout.
+
 ---
 
-## 10. Native Storage Paths & Access Control Matrix
+## 10. Evidence-Based OS KeyStore Environment Matrix (Phase 6)
+
+| Platform & Environment | Primary Backend | Protection Boundary | Hardware Backing | Headless / Service Support | User-Session Requirement | Failure Behavior & Limitations |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Windows Workstation** | Win32 DPAPI (`CryptProtectData`) | User master key derived from user credentials | Optional (TPM-bound if BitLocker is enabled) | Supported for interactive and background processes | Tied to active user account context | Returns `ERR_KEYSTORE_UNAVAILABLE` on cryptographic subsystem failure. |
+| **Windows Server Core** | Win32 DPAPI (`CryptProtectData`) | Machine or Service SID master key | Optional (vTPM / TPM) | Fully supported in headless Server Core | Usable by `LocalSystem` / `NetworkService` | Must use `CRYPTPROTECT_LOCAL_MACHINE` or service account scope. |
+| **macOS Desktop** | Apple Keychain (`SecItemAdd`) | AES-256 encrypted login keychain | Hardware Secure Enclave (Apple Silicon / T2) | Supported in user sessions | Requires unlocked user session keychain | Fails with `ERR_KEYSTORE_UNAVAILABLE` if keychain is locked and inaccessible. |
+| **Linux Desktop (GNOME/KDE)** | Freedesktop Secret Service (D-Bus) | User login keyring encrypted by PAM password | No (Software daemon; TPM non-standard) | Supported in active desktop sessions | Requires running D-Bus session bus and unlocked keyring | Fails with `ERR_KEYSTORE_UNAVAILABLE` if D-Bus service is unreachable. |
+| **Linux Headless / Server** | **Fail-Safe Policy** (Explicit Error) | N/A | N/A | Supported only when an explicit OS secret provider is configured | No D-Bus session | **Fail-Safe**: Returns `ERR_KEYSTORE_UNAVAILABLE`. No weak pseudo-encryption fallback (e.g. `/etc/machine-id` derivation is prohibited). Optional `--insecure-dev-keystore` for offline testing only. |
+
+---
+
+## 11. Native Storage Paths & Access Control Matrix
 
 | Environment / Mode | Windows | Linux | macOS |
 | :--- | :--- | :--- | :--- |

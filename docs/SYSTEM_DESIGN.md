@@ -176,30 +176,37 @@ Every enrolled host possesses a unique **Ed25519 (RFC 8032)** asymmetric cryptog
   StringToSign = METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + NONCE + "\n" + REQUEST_ID + "\n" + SHA256(BODY)
   ```
 
+### 4.2 Key Lifecycle & Deterministic Rotation State Machine
+
 ```mermaid
 stateDiagram-v2
     [*] --> Unenrolled: Binary Installed
     Unenrolled --> GeneratingKeys: netra enroll --token [token]
-    GeneratingKeys --> StoringKeyring: Ed25519 Keypair Generated
-    StoringKeyring --> AwaitingAttestation: Key Saved to DPAPI / SecretService
-    AwaitingAttestation --> Enrolled: Control API Validates Token & Stores Public Key
-    Enrolled --> Active: Persistent WSS Stream Connected
+    GeneratingKeys --> StoringKeyring: Ed25519 Keypair Generated (Seed in KeyStore)
+    StoringKeyring --> AwaitingAttestation: Proof-of-Possession Challenge Signed
+    AwaitingAttestation --> Active: Receipt Stored in SQLite (_netra_device_identity)
+    Active --> RotationPending: Trigger Scheduled (90d) or Manual Rotation
+    RotationPending --> NewKeyVerified: Generate Key_V2 in KeyStore & Dual-Sign Proof
+    NewKeyVerified --> Active: Gateway Acknowledges Key_V2 (Key_V2 becomes ACTIVE)
     Active --> Revoked: Admin Revocation / Cryptographic Tamper
-    Revoked --> [*]: Keys Purged & Execution Halted
+    Revoked --> [*]: Private Key Scrubbed from KeyStore & Execution Halted
 ```
 
 ---
 
-## 5. Agent ↔ Control API Transport Protocol
+## 5. Agent ↔ Control API Transport Protocol (WSS & REST)
 
-NETRA agents communicate with the central Control API via a persistent **WebSocket over TLS 1.3 (WSS)** connection, using **Protocol Buffers (Protobuf v3)** for minimal serialization overhead:
+NETRA agents communicate with the upstream Control Gateway via a persistent **WebSocket over TLS 1.3 (WSS)** connection using **Canonical JSON Framing**:
 
-* **Primary Transport**: `wss://api.netra.io/v1/agent/stream`
-* **Fallback Transport**: Authenticated HTTPS Long Polling (`POST /v1/agent/poll`) for restrictive proxies.
-* **Heartbeat Cadence**: Ping/Pong frame sent every 15 seconds. If missed for 45 seconds, the connection is marked `DISCONNECTED` and offline caching begins.
+* **Primary Transport**: `wss://api.netra.io/api/v1/agent/stream`
+* **Transport Encryption**: Strict TLS 1.3 via `rustls` with Mozilla root CA certificates (`webpki-roots`).
+* **Session Authentication**: Ed25519 challenge-response handshake upon connection establishment.
+* **In-Session Replay Defense**: Monotonic sequence numbers (`sequence_num: 0, 1, 2...`) per connection lifetime.
+* **Heartbeat Cadence**: Ping/Pong frame sent every 15 seconds. If missed for 45 seconds, the connection is marked `DISCONNECTED` and reconnect loop begins.
 * **Reconnection Algorithm**: Exponential backoff with jitter:
   $$t_{\text{backoff}} = \min(t_{\text{max}}, t_{\text{base}} \times 2^{\text{attempt}}) \pm \text{jitter}$$
-  where $t_{\text{base}} = 1\text{ s}$, $t_{\text{max}} = 300\text{ s}$, and $\text{jitter} \in [0, 500\text{ ms}]$.
+  where $t_{\text{base}} = 2\text{ s}$, $t_{\text{max}} = 60\text{ s}$, and $\text{jitter} \in [0, 500\text{ ms}]$.
+
 
 ### 5.1 Control-Plane REST API Gateway Architecture (Phase 5)
 

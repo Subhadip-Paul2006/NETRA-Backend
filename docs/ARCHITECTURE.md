@@ -62,7 +62,7 @@ flowchart TD
     end
 
     subgraph Cloud["Central Control Plane (Optional Cloud Coordination)"]
-        WSS["Stream Gateway (WSS TLS 1.3 / Protobuf)"]
+        WSS["Stream Gateway (WSS TLS 1.3 / Canonical JSON)"]
         API["Control API (REST / OpenAPI 3.1)"]
         Supa[("Supabase / PostgreSQL 16 Core<br/>(Row-Level Security / CTE Graph Engine)")]
         

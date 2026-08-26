@@ -227,61 +227,86 @@ message Frame {
     FindingIngest finding_ingest = 6;
     Heartbeat heartbeat = 7;
     Ack ack = 8;
-  }
-}
+## 7. WebSocket Agent Stream Protocol (`/v1/agent/stream`)
 
-message AgentHello {
-  string device_id = 1;
-  string os_name = 2;
-  string arch = 3;
-  string agent_version = 4;
-}
+The primary streaming communication between an enrolled NETRA endpoint and the upstream control plane operates over WebSocket over TLS 1.3 (WSS) using **Canonical JSON Framing**.
 
-message TaskDispatch {
-  string task_id = 1;
-  string capability = 2;
-  string parameters_json = 3;
-  int32 timeout_seconds = 4;
-}
+### 7.1 Protocol Invariants
+* **Session Handshake**: Upon WSS connection, the gateway issues a random challenge nonce. The agent signs this challenge using its active Ed25519 private key to authenticate the session.
+* **In-Session Replay Defense**: In-stream telemetry frames utilize monotonic sequence numbers (`sequence_num: 0, 1, 2...`). Out-of-order or duplicate frames within the session are dropped.
+* **High-Stakes Messages**: Security-critical operations (remediation approvals, key rotation requests) include individual Ed25519 signatures.
 
-message TaskResult {
-  string task_id = 1;
-  string status = 2;
-  string evidence_sha256 = 3;
-  bytes raw_evidence_gz = 4;
-  string error_message = 5;
+### 7.2 Canonical JSON Frame Envelope
+```json
+{
+  "protocol_version": 1,
+  "frame_type": "TELEMETRY_REPORT",
+  "device_id": "dev_01918a2b3c4d7e8f9a0b1c2d3e4f5a6b",
+  "key_id": "key_01918a2b3c4d",
+  "session_id": "sess_01918a2c4d5e",
+  "sequence_num": 1042,
+  "timestamp": 1776189500,
+  "payload": {
+    "report_type": "HOST_POSTURE",
+    "findings_count": 0,
+    "storage_saturation_pct": 0.2
+  },
+  "signature": null
 }
 ```
 
 ---
 
-## 8. Agent-Facing REST Endpoints
+## 8. Agent-Facing REST Endpoints (Enrollment & Key Lifecycle)
 
-### 8.1 `POST /v1/agent/enroll`
-Enrolls a newly installed agent host.
-* **Status**: `Specified`
+### 8.1 `POST /api/v1/agent/enroll` (Step 1: Initiation)
+Initiates enrollment of a newly installed agent host.
+* **Status**: `Client-Side Protocol Engine (Phase 6); Cloud Registry (Phase 13+)`
 * **Actor**: Unenrolled Agent Host
-* **Auth**: Single-use Enrollment Token
+* **Auth**: Single-use Bootstrap Token
 * **Request**:
 ```json
 {
-  "enrollment_token": "enroll_sec_99a8b7c6d5e4f3a2",
+  "bootstrap_token": "enroll_sec_99a8b7c6d5e4f3a2",
+  "device_id": "dev_01918a2b3c4d7e8f9a0b1c2d3e4f5a6b",
   "public_key": "3d4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
-  "hostname": "workstation-01",
-  "os_type": "linux",
-  "os_release": "Ubuntu 24.04 LTS",
-  "arch": "amd64"
+  "key_id": "key_01918a2b3c4d",
+  "os_type": "windows",
+  "os_release": "Windows 11 Pro 23H2",
+  "arch": "x86_64"
 }
 ```
-* **Response (201 Created)**:
+* **Response (200 OK)**:
 ```json
 {
   "success": true,
   "data": {
-    "device_id": "dev_01h8a9b2c3d4e5f6",
-    "tenant_id": "ten_01h8a1b2c3d4",
-    "heartbeat_interval_seconds": 15,
-    "enrolled_at": "2026-08-24T12:00:00Z"
+    "challenge_nonce": "a9f8e7d6-c5b4-4a3b-2a1f-0e9d8c7b6a5f",
+    "server_timestamp": 1776189500,
+    "expires_at": 1776189530
+  }
+}
+```
+
+### 8.2 `POST /api/v1/agent/enroll/verify` (Step 2: Proof of Possession)
+Completes enrollment by verifying cryptographic ownership of the private key.
+* **Request**:
+```json
+{
+  "device_id": "dev_01918a2b3c4d7e8f9a0b1c2d3e4f5a6b",
+  "key_id": "key_01918a2b3c4d",
+  "proof_of_possession_signature": "6f8b9e... (128-character hex-encoded Ed25519 signature over SHA256(challenge_nonce + device_id + timestamp))"
+}
+```
+* **Response (200 OK - DeviceEnrollmentReceipt)**:
+```json
+{
+  "success": true,
+  "data": {
+    "device_id": "dev_01918a2b3c4d7e8f9a0b1c2d3e4f5a6b",
+    "key_id": "key_01918a2b3c4d",
+    "enrolled_at": "2026-08-26T12:00:00Z",
+    "gateway_id": "gw_01h8a1b2c3d4"
   }
 }
 ```

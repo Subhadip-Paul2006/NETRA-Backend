@@ -91,8 +91,10 @@ flowchart LR
 ## 4. Transport & Protocol Specifications
 
 ### 4.1 Cloud Coordination Transport (Phase 6)
-* **Primary Channel**: Bidirectional **WebSocket over TLS 1.3 (WSS)** with **Protocol Buffers v3**.
-* **Fallback Channel**: Authenticated HTTPS REST Long Polling (`POST /v1/agent/poll`).
+* **Primary Channel**: Bidirectional **WebSocket over TLS 1.3 (WSS)** with **Canonical JSON Framing**.
+* **Transport Encryption**: Strict TLS 1.3 via `rustls` with Mozilla root CA certificates (`webpki-roots`).
+* **Session Handshake**: Ed25519 challenge-response handshake authenticating device identity.
+* **In-Session Replay Defense**: Monotonic sequence numbers (`sequence_num: 0, 1, 2...`) per connection lifetime.
 * **Heartbeat Cadence**: Ping/Pong frame every 15 seconds. Disconnection declared after 45 seconds of missed heartbeats.
 * **Network Traversal**: 100% outbound connections. Endpoints require zero open inbound firewall ports.
 
@@ -129,13 +131,18 @@ flowchart LR
 
 ---
 
-## 5. Cryptographic Identity & Attestation Specifications
+## 5. Cryptographic Identity & Attestation Specifications (Phase 6)
 
-* **Algorithm**: **Ed25519 (RFC 8032)** asymmetric public-key signature standard.
-* **Key Storage**: Machine or user-level protected keyring (DPAPI / SecretService / Keychain); private key is never written to unencrypted plaintext disk files.
+* **Algorithm**: **Ed25519 (RFC 8032)** asymmetric public-key signature standard via `ed25519-dalek` v2.1.1 and `zeroize`.
+* **Key Storage (KeyStore Trait)**:
+  - **Windows**: Win32 DPAPI (`CryptProtectData`) using machine or user master keys.
+  - **Linux**: Freedesktop Secret Service API via D-Bus; if unavailable, returns `ERR_KEYSTORE_UNAVAILABLE` (no weak machine-id key derivation).
+  - **macOS**: Apple Keychain Services (`SecItemAdd`).
+* **Key Segregation**: Private keys are strictly prohibited from SQLite; SQLite stores only public keys and metadata.
 * **Replay Protection**:
-  - Timestamp verification window: $\pm 300\text{ s}$ from server UTC.
-  - In-memory sliding-window nonce cache: Rejects identical nonces within 600 seconds.
+  - Stateless HTTP requests: Timestamp verification ($\pm 300\text{ s}$) + 600s sliding-window nonce deduplication.
+  - Stateful WSS streams: Monotonic sequence numbers per connection session.
+* **Deterministic Signing String**: Line-delimited `StringToSign = METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + NONCE + "\n" + REQUEST_ID + "\n" + HEX(SHA256(BODY))`.
 
 ---
 

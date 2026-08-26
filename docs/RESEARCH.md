@@ -149,6 +149,20 @@ A qualitative comparative evaluation between the leading Rust asynchronous HTTP 
 
 **Conclusion**: Axum is selected as the authoritative framework for NETRA's REST API layer due to its native alignment with Tokio, standard Tower middleware, and lower abstraction complexity.
 
+### 7.5 Phase 6 Cryptographic & KeyStore Evaluation
+
+| Evaluation Dimension | **ed25519-dalek (Selected)** | **ring (Evaluated / Rejected)** | **sodiumoxide (Evaluated / Rejected)** |
+| :--- | :--- | :--- | :--- |
+| **Implementation Language** | 100% Pure Rust (RustCrypto) | Rust wrapper around C & Assembly | Rust binding to C `libsodium` |
+| **Memory Zeroization** | Direct native support for `zeroize::ZeroizeOnDrop` | Opaque key structures; manual zeroization limits | Depends on C runtime zeroization |
+| **Toolchain & FFI Risks** | Zero C compiler dependency; pure Rust | Requires C compiler & Perl for assembly building | Requires external C library installation |
+| **Audit & Reputation** | Extensively audited (used in Signal, Tor, Solana) | Widely used, but high build complexity | Deprecated / unmaintained |
+
+| KeyStore Trade-Off | **OS-Native KeyStore Trait (Selected)** | **Unencrypted Files (Rejected)** | **Machine-ID KDF (Rejected)** |
+| :--- | :--- | :--- | :--- |
+| **Security Boundary** | Strong: Hardware/OS LSA encryption (DPAPI / Keychain / Secret Service) | None: Plaintext readable by any unprivileged process | Pseudo-security: `/etc/machine-id` is non-secret and trivially reconstructible |
+| **Failure Behavior** | Fails safely with `ERR_KEYSTORE_UNAVAILABLE` | Insecure data leak | Silent insecure fallback |
+
 ---
 
 ## 8. Comprehensive Visual Inventory (59 Architectural Diagrams)

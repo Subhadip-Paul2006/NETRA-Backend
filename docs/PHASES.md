@@ -188,15 +188,19 @@ flowchart TD
 
 ---
 
-## 10. Phase 6: Device Identity & Asymmetric Ed25519 WSS Protocol
+## 10. Phase 6: Device Identity, OS-Protected Key Management & WSS Protocol
 
-* **Status**: `PLANNED`
-* **Goal**: Implement asymmetric Ed25519 device attestation and WSS streaming in Rust.
+* **Status**: `PLANNED & APPROVED`
+* **Goal**: Implement cryptographic device identity, OS-protected private-key storage (DPAPI / Secret Service / Keychain), client-side enrollment protocol, canonical request signing, and outbound WebSocket over TLS 1.3 (WSS) streaming in Rust.
 * **Scope**:
-  - Ed25519 keypair generation and OS keyring persistence (DPAPI / SecretService).
-  - Canonical request signing and header verification.
-  - Persistent WebSocket gateway with Protobuf v3 (`prost`) frame encoding.
-* **Exit Gate**: Replay attack with stale timestamp (>300s) or duplicated nonce is rejected with HTTP 401.
+  - Stable `DeviceId` model (`dev_<uuidv7>`) distinct from MAC/hostnames.
+  - Ed25519 keypair generation and memory zeroization via `ed25519-dalek` and `zeroize`.
+  - OS-Protected `KeyStore` trait: Win32 DPAPI, Apple Keychain, Linux Secret Service with fail-safe `ERR_KEYSTORE_UNAVAILABLE` on headless servers (no weak machine-id key derivation).
+  - Client-side enrollment challenge-response proof-of-possession against mock test fixtures.
+  - Deterministic line-delimited request signing (`StringToSign`) and consolidated replay defense.
+  - Policy-driven key rotation state machine (`ACTIVE` $\to$ `ROTATION_PENDING` $\to$ `NEW_KEY_VERIFIED` $\to$ `ACTIVE` $\to$ `RETIRED`).
+  - Persistent outbound WSS client over TLS 1.3 (`tokio-tungstenite` + `rustls`) with Canonical JSON framing.
+* **Exit Gate**: 100% of cryptographic unit tests pass; replay attacks with stale timestamp (>300s) or duplicated nonces are rejected with HTTP 401; KeyStore safely stores and scrubs private keys.
 
 ---
 

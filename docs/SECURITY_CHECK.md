@@ -71,11 +71,12 @@ Building the NETRA endpoint layer in Rust eliminates an entire class of critical
 ## 3. Device Identity & Asymmetric Cryptography (Ed25519)
 
 Every enrolled agent host is identified by an **Ed25519 (RFC 8032)** asymmetric cryptographic keypair:
-* **Private Key Generation**: Generated locally in memory upon initial enrollment. Private keys are never transmitted over the network.
-* **OS Protected Key Storage**:
-  - **Windows**: Protected via DPAPI (`CryptProtectData`) using `CRYPTPROTECT_LOCAL_MACHINE` or `CRYPTPROTECT_CURRENT_USER` scope.
-  - **Linux**: Stored via Freedesktop SecretService API or `0400` root/user-restricted filesystem vaults.
-  - **macOS**: Stored in the Apple System Keychain with explicit access control lists.
+* **Private Key Generation & Residency**: Generated locally in memory upon initial enrollment using `ed25519-dalek` and `zeroize`. Private keys are never transmitted over the network.
+* **OS-Protected Key Storage (KeyStore)**:
+  - **Windows**: Protected via Win32 DPAPI (`CryptProtectData`) using user or machine master key scope.
+  - **Linux**: Stored via Freedesktop Secret Service API over D-Bus. In headless environments without a secret provider, the system fails safely with `ERR_KEYSTORE_UNAVAILABLE` (no weak pseudo-encryption from public host identifiers like `/etc/machine-id`).
+  - **macOS**: Stored in Apple Keychain Services (`SecItemAdd`) with explicit access control lists.
+* **Memory Protection**: Volatile memory buffers holding private key seed material implement `ZeroizeOnDrop` via `zeroize::Zeroizing<T>` to scrub memory when dropped.
 * **Canonical Header Verification**: All agent requests are signed with canonical headers (`X-NETRA-Device-ID`, `X-NETRA-Timestamp`, `X-NETRA-Nonce`, `X-NETRA-Signature`) and validated against a $\pm 300\text{ s}$ timestamp window and sliding nonce cache.
 
 ---
@@ -84,11 +85,10 @@ Every enrolled agent host is identified by an **Ed25519 (RFC 8032)** asymmetric 
 
 ### 4.1 Local State & SQLite Storage Security
 * **Filesystem DACLs & Permissions**: Parent directory is restricted to `0700` permissions; local database files (`agent.db`, `agent.db-wal`, `agent.db-shm`) are restricted to `0600` permissions (accessible exclusively by the executing user SID or daemon owner).
-* **Secret Segregation Boundary**: Asymmetric private keys (Ed25519) and gateway authentication tokens are **strictly prohibited** from SQLite plaintext storage; they are managed exclusively by OS hardware-backed keyrings (DPAPI / SecretService / Keychain in Phase 6).
+* **Secret Segregation Boundary**: Asymmetric private keys (Ed25519) and bootstrap tokens are **strictly prohibited** from SQLite plaintext storage; private keys are managed exclusively by OS-protected key storage (DPAPI / Secret Service / Keychain in Phase 6). SQLite stores only public keys and metadata.
 * **Safe 6-Step Quarantine Directory Protocol**: When corruption is detected, active handles are closed, database files are isolated into a dedicated `quarantine_<TIMESTAMP>/` directory, and an adjacent `quarantine_meta.json` recording SHA-256 hashes, file sizes, and corruption errors is generated. Silent automated file deletion is strictly prohibited.
 * **Storage Recovery Safeguards**: The manual operator command `netra storage recover` requires explicit operator confirmation in interactive mode or `--force-reinit` in non-interactive/CI mode. Recovery strictly archives existing database, WAL, and SHM files to a quarantine directory before re-initializing a clean store. Recovery is never invoked implicitly from health checks or status commands.
 * **Atomic Clean-Shutdown Marker Protocol**: `.runtime_active` tracks process session ownership and prevents multi-instance file conflicts. `.clean_shutdown` is written atomically only after handle closure and checkpoint completion to reliably detect crashes and trigger Tier 2 `PRAGMA quick_check;`.
-* **Memory Scrubbing**: Sensitive cryptographic buffers in RAM are zeroed (`zeroize` crate) immediately after signature operations.
 
 ### 4.2 Local IPC as a Critical Security Boundary
 The Local IPC link between the Supervisor and Worker processes constitutes a high-assurance host trust boundary:
