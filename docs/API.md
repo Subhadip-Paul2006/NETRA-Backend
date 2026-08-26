@@ -255,6 +255,21 @@ The primary streaming communication between an enrolled NETRA endpoint and the u
 }
 ```
 
+### 7.3 Explicit WSS Frame Authentication Matrix
+
+| Frame Type | Transport TLS 1.3 | Session Auth (Handshake) | Sequence Number (`seq_num`) | Nonce Required | Timestamp Required | Per-Message Ed25519 Signature | Rationale |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **`SESSION_HANDSHAKE_REQ`** | ✅ Required | ⏳ Establishing | `0` | ✅ Required | ✅ Required | ✅ **Required** | Authenticates device ownership of private key at session establishment. |
+| **`SESSION_HANDSHAKE_RESP`** | ✅ Required | ⏳ Establishing | `0` | ✅ Required | ✅ Required | ❌ None (TLS Server Cert) | Gateway accepts handshake and issues active `session_id`. |
+| **`HEARTBEAT_PING`** | ✅ Required | ✅ Active Session | ✅ Monotonic (`N+1`) | ❌ Prohibited | ✅ Required | ❌ **Prohibited** | High-frequency liveness check (every 15s); authenticated by session state. |
+| **`HEARTBEAT_PONG`** | ✅ Required | ✅ Active Session | ✅ Monotonic (`N+1`) | ❌ Prohibited | ✅ Required | ❌ **Prohibited** | High-frequency keepalive acknowledgment. |
+| **`TELEMETRY_REPORT`** | ✅ Required | ✅ Active Session | ✅ Monotonic (`N+1`) | ❌ Prohibited | ✅ Required | ❌ **Prohibited** | Wire-speed telemetry stream; protected against replay by strict monotonic `seq_num`. |
+| **`TASK_DISPATCH`** | ✅ Required | ✅ Active Session | ✅ Monotonic (`N+1`) | ✅ Required | ✅ Required | ❌ Gateway Signed | Inbound task command from control gateway. |
+| **`TASK_RESULT`** | ✅ Required | ✅ Active Session | ✅ Monotonic (`N+1`) | ✅ Required | ✅ Required | ⚠️ Optional (Audit Tier) | Standard observation results; critical evidence may include SHA-256 digest. |
+| **`REMEDIATION_APPROVAL`** | ✅ Required | ✅ Active Session | ✅ Monotonic (`N+1`) | ✅ Required | ✅ Required | ✅ **Required** | High-stakes remediation action requires explicit non-repudiable operator signature. |
+| **`KEY_ROTATION_REQUEST`** | ✅ Required | ✅ Active Session | ✅ Monotonic (`N+1`) | ✅ Required | ✅ Required | ✅ **Required (Dual-Sig)** | Security-critical key transition requires signatures by both old and new keys. |
+| **`DISCONNECT_NOTICE`** | ✅ Required | ✅ Active Session | ✅ Monotonic (`N+1`) | ❌ Prohibited | ✅ Required | ❌ Prohibited | Clean connection termination notification. |
+
 ---
 
 ## 8. Agent-Facing REST Endpoints (Enrollment & Key Lifecycle)
@@ -281,7 +296,7 @@ Initiates enrollment of a newly installed agent host.
 {
   "success": true,
   "data": {
-    "challenge_nonce": "a9f8e7d6-c5b4-4a3b-2a1f-0e9d8c7b6a5f",
+    "challenge_nonce": "01918a2b-3c4d-7e8f-9a0b-1c2d3e4f5a6b",
     "server_timestamp": 1776189500,
     "expires_at": 1776189530
   }
@@ -290,12 +305,31 @@ Initiates enrollment of a newly installed agent host.
 
 ### 8.2 `POST /api/v1/agent/enroll/verify` (Step 2: Proof of Possession)
 Completes enrollment by verifying cryptographic ownership of the private key.
+
+#### Structured Proof of Possession Specification:
+```text
+CanonicalProofString = "NETRA_PROOF_OF_POSSESSION_V1" + "\n" +
+                       PROTOCOL_VERSION + "\n" +
+                       DEVICE_ID + "\n" +
+                       KEY_ID + "\n" +
+                       CHALLENGE_NONCE + "\n" +
+                       SERVER_TIMESTAMP + "\n" +
+                       HEX(SHA256(ENROLLMENT_CONTEXT))
+
+ProofDigest = SHA256(CanonicalProofString)
+ProofSignature = Ed25519_Sign(private_key, ProofDigest)
+```
+
+* **Test Vector**:
+  - `CanonicalProofString`: `NETRA_PROOF_OF_POSSESSION_V1\n1\ndev_01918a2b3c4d7e8f9a0b1c2d3e4f5a6b\nkey_01918a2b3c4d\n01918a2b-3c4d-7e8f-9a0b-1c2d3e4f5a6b\n1776189500\n673a5a8e0f11910df666579c3fb4fa6a12b6833d735071df9bc4e64f77cfa9c5`
+  - `SHA256 Digest`: `9b8d2b29ec49b185b37f1e7d37a28178d8a7c2937080b06bcefa34cfb776dc12`
+
 * **Request**:
 ```json
 {
   "device_id": "dev_01918a2b3c4d7e8f9a0b1c2d3e4f5a6b",
   "key_id": "key_01918a2b3c4d",
-  "proof_of_possession_signature": "6f8b9e... (128-character hex-encoded Ed25519 signature over SHA256(challenge_nonce + device_id + timestamp))"
+  "proof_of_possession_signature": "6f8b9e... (128-character hex-encoded Ed25519 signature over ProofDigest)"
 }
 ```
 * **Response (200 OK - DeviceEnrollmentReceipt)**:

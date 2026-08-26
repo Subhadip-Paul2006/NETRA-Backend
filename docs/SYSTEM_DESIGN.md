@@ -192,6 +192,34 @@ stateDiagram-v2
     Revoked --> [*]: Private Key Scrubbed from KeyStore & Execution Halted
 ```
 
+#### Key Rotation Crash & Restart Recovery Sequence:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent as NETRA Agent Core
+    participant SQLite as Local SQLite Store
+    participant KeyStore as OS KeyStore
+    participant GW as Upstream Control Gateway
+
+    Note over Agent,GW: Normal Rotation Sequence
+    Agent->>KeyStore: 1. Generate & store Key_V2 private seed
+    Agent->>SQLite: 2. Persist Key_V2 metadata; set status = ROTATION_PENDING
+    Agent->>GW: 3. Dispatch KeyRotationRequest (Dual-Signed by V1 + V2)
+    
+    Note over Agent: CRASH / POWER LOSS OCCURS BEFORE ACK
+    
+    Note over Agent,GW: Post-Restart Recovery Sequence
+    Agent->>SQLite: 4. Startup scan detects Key_V2 with ROTATION_PENDING
+    Agent->>SQLite: 5. Verify Key_V1 is still ACTIVE (Never delete old key prematurely)
+    Agent->>KeyStore: 6. Load Key_V1 and Key_V2 private seeds
+    Agent->>GW: 7. Re-dispatch idempotent KeyRotationRequest upon WSS reconnect
+    GW->>GW: 8. Verify dual-signatures and register Key_V2 as ACTIVE
+    GW-->>Agent: 9. 200 OK: KeyRotationAck { active_key_id: "key_v2", grace_expires_at: "..." }
+    Agent->>SQLite: 10. Update SQLite: Key_V2 -> ACTIVE, Key_V1 -> RETIRED
+    Agent->>KeyStore: 11. Schedule Key_V1 private seed deletion upon grace expiry
+```
+
 ---
 
 ## 5. Agent ↔ Control API Transport Protocol (WSS & REST)
@@ -206,6 +234,7 @@ NETRA agents communicate with the upstream Control Gateway via a persistent **We
 * **Reconnection Algorithm**: Exponential backoff with jitter:
   $$t_{\text{backoff}} = \min(t_{\text{max}}, t_{\text{base}} \times 2^{\text{attempt}}) \pm \text{jitter}$$
   where $t_{\text{base}} = 2\text{ s}$, $t_{\text{max}} = 60\text{ s}$, and $\text{jitter} \in [0, 500\text{ ms}]$.
+
 
 
 ### 5.1 Control-Plane REST API Gateway Architecture (Phase 5)
