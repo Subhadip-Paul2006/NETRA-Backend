@@ -68,7 +68,7 @@ Building the NETRA endpoint layer in Rust eliminates an entire class of critical
 
 ---
 
-## 3. Device Identity & Asymmetric Cryptography (Ed25519)
+## 3. Device Identity, Key Management & Authentication (Phase 6)
 
 Every enrolled agent host is identified by an **Ed25519 (RFC 8032)** asymmetric cryptographic keypair:
 * **Private Key Generation & Residency**: Generated locally in memory upon initial enrollment using `ed25519-dalek` and `zeroize`. Private keys are never transmitted over the network.
@@ -76,7 +76,12 @@ Every enrolled agent host is identified by an **Ed25519 (RFC 8032)** asymmetric 
   - **Windows**: Protected via Win32 DPAPI (`CryptProtectData`) using user or machine master key scope.
   - **Linux**: Stored via Freedesktop Secret Service API over D-Bus. In headless environments without a secret provider, the system fails safely with `ERR_KEYSTORE_UNAVAILABLE` (no weak pseudo-encryption from public host identifiers like `/etc/machine-id`).
   - **macOS**: Stored in Apple Keychain Services (`SecItemAdd`) with explicit access control lists.
-* **Memory Protection**: Volatile memory buffers holding private key seed material implement `ZeroizeOnDrop` via `zeroize::Zeroizing<T>` to scrub memory when dropped.
+  - **Compile-Time Gated Development Backend**: A file-based mock KeyStore is guarded behind `#[cfg(feature = "insecure-dev-keystore")]`. In standard/release builds, the flag is not compiled in and cannot be activated via CLI, environment variables, or config files. When active in debug tests, it emits an unavoidable high-priority security alert log.
+* **Memory Clearing & Limits**: Volatile memory buffers holding private key seed material implement `ZeroizeOnDrop` via `zeroize::Zeroizing<T>` to scrub memory when dropped, mitigating residual secret lifetime in RAM. (Realistic OS limits: unprivileged user-space zeroization cannot control OS swap/hibernation files or temporary kernel FFI buffers).
+* **Two-Stage Authentication Boundary**:
+  - **Stage 1 (Bootstrap Enrollment)**: Authenticated exclusively via a single-use operator bootstrap token (15-minute TTL, held strictly in volatile RAM, never persisted to disk, permanently consumed upon completion) and a structured `ProofOfPossession` challenge signature (`NETRA_PROOF_OF_POSSESSION_V1`).
+  - **Stage 2 (Enrolled Device Auth)**: Authenticated directly via Ed25519 signatures during WSS connection handshakes. Bootstrap tokens are never used for regular traffic.
+* **Non-Speculative WSS Framing**: Phase 6 implements exclusively transport and security frames (`SESSION_HANDSHAKE_REQ/RESP`, `HEARTBEAT_PING/PONG`, `KEY_ROTATION_REQUEST/RESP`, `DISCONNECT_NOTICE`). Application-specific tasks, scans, and remediations are strictly deferred to later phases.
 * **Canonical Header Verification**: All agent requests are signed with canonical headers (`X-NETRA-Device-ID`, `X-NETRA-Timestamp`, `X-NETRA-Nonce`, `X-NETRA-Signature`) and validated against a $\pm 300\text{ s}$ timestamp window and sliding nonce cache.
 
 ---

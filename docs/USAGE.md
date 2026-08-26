@@ -248,3 +248,25 @@ curl -s http://127.0.0.1:8443/api/v1/storage/check
 curl -s "http://127.0.0.1:8443/api/v1/storage/check?deep=true"
 ```
 
+---
+
+## 13. Device Identity & Enrollment CLI Operations (Phase 6)
+
+```bash
+# Enroll agent host with upstream control plane using single-use bootstrap token
+netra enroll --token <BOOTSTRAP_TOKEN> --gateway wss://control.netra.local/api/v1/agent/stream
+
+# Query cryptographic device identity, active public key, and KeyStore status
+netra identity status
+
+# Query identity status with structured JSON output
+netra identity status --json
+
+# Trigger manual policy-driven key rotation
+netra identity rotate
+
+# Trigger emergency key rotation / revocation
+netra identity rotate --emergency
+```
+
+
