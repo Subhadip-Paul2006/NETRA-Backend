@@ -53,7 +53,7 @@ flowchart TD
     
     Binary --> CheckMode{"Invocation Context"}
     
-    CheckMode -- "CLI Command (e.g., netra scan)" --> CLIMode["Interactive / Scripting CLI Mode<br/>• Short-lived userspace process<br/>• Direct OS probing or Local Daemon IPC<br/>• stdout/stderr stream separation<br/>• Pure JSON / ANSI table outputs"]
+    CheckMode -- "CLI Command (e.g., netra status, netra storage status)" --> CLIMode["Interactive / Scripting CLI Mode<br/>• Short-lived userspace process<br/>• Canonical stdout (result/JSON) & stderr (UI/logs) separation<br/>• Strict exit codes (0, 1, 2, 3, 4)"]
     
     CheckMode -- "Service Daemon (systemd / Windows SCM / user daemon)" --> DaemonMode["Two-Tier Background Service Mode"]
     
@@ -200,6 +200,28 @@ NETRA agents communicate with the central Control API via a persistent **WebSock
 * **Reconnection Algorithm**: Exponential backoff with jitter:
   $$t_{\text{backoff}} = \min(t_{\text{max}}, t_{\text{base}} \times 2^{\text{attempt}}) \pm \text{jitter}$$
   where $t_{\text{base}} = 1\text{ s}$, $t_{\text{max}} = 300\text{ s}$, and $\text{jitter} \in [0, 500\text{ ms}]$.
+
+### 5.1 Control-Plane REST API Gateway Architecture (Phase 5)
+
+The Phase 5 REST API Gateway (`netra-api`) operates as an asynchronous Axum HTTP service:
+
+```mermaid
+sequenceDiagram
+    participant Client as Local Tool / HTTP Client
+    participant Router as netra-api (Axum v0.8)
+    participant Core as netra-core::runtime (RuntimeCoordinator)
+    participant Storage as netra-core::storage (DatabaseEngine)
+
+    Client->>Router: GET /api/v1/storage/check?deep=true
+    Router->>Storage: with_reader(IntegrityVerification::probe_tier3_deep_check)
+    Storage-->>Router: StorageResult (passed: true, details: "Tier 3 check passed cleanly")
+    Router-->>Client: 200 OK (Universal Success Envelope with x-request-id)
+```
+
+* **Loopback-Only Binding**: Strictly `127.0.0.1:8443` or `[::1]:8443` (configurable port; binding to public/remote interfaces is prohibited in Phase 5).
+* **Route Taxonomy**: `GET /api/v1/health`, `GET /api/v1/version`, `GET /api/v1/status`, `GET /api/v1/diagnostics`, `GET /api/v1/openapi.json`, `GET /api/v1/storage/status`, `GET /api/v1/storage/check` (returns `200 OK` with `passed: true|false` payload when probe executes successfully; `409 Conflict` if deep check is already in flight).
+* **Cache Headers**: Emits `Cache-Control: no-store` on live diagnostic routes to prevent local caching of ephemeral state.
+* **Runtime Lifecycle**: `ApiService` implements `ComponentLifecycle`. `RuntimeCoordinator` initiates reverse teardown; `ApiService` stops accepting new connections and drains in-flight requests within the global runtime budget.
 
 ---
 

@@ -170,9 +170,14 @@ jobs:
 | Variable | Default Value | Description |
 | :--- | :--- | :--- |
 | `NETRA_SERVER_URL` | `https://api.netra.io` | Central Control API base URL |
-| `NETRA_LOG_LEVEL` | `info` | Logging verbosity (`debug`, `info`, `warn`, `error`) |
-| `NETRA_CONFIG_DIR` | `/etc/netra` (Linux) | Path to local configuration directory |
-| `NO_COLOR` | `0` | Set to `1` to disable ANSI colors in terminal output |
+| `NETRA_LOG_LEVEL` | `info` | Logging verbosity (`trace`, `debug`, `info`, `warn`, `error`) |
+| `NETRA_LOG_FORMAT` | `human` | Log output format (`human`, `json`) |
+| `NETRA_LOCAL_DB_PATH` | `tmp/agent.db` | Path to local SQLite database |
+| `NETRA_SHUTDOWN_TIMEOUT_MS` | `5000` | Graceful shutdown timeout in milliseconds |
+| `NETRA_WORKER_MEMORY_LIMIT_BYTES` | `104857600` | Low-privilege worker process memory limit (100MB) |
+| `NETRA_RESTART_DELAY_MS` | `2000` | Supervisor watchdog restart backoff base (2000ms) |
+| `NETRA_MAX_CONSECUTIVE_CRASHES` | `5` | Maximum worker crashes before circuit breaker trips |
+| `NO_COLOR` | `0` | Set to `1` or `true` to disable ANSI colors across all output |
 
 ---
 
@@ -180,13 +185,13 @@ jobs:
 
 ```mermaid
 flowchart TD
-    Issue["Agent Status: OFFLINE or Scan Error"] --> D1["Run sudo netra diagnostics"]
-    D1 --> D2{"Check Outbound WSS Port 443"}
-    D2 -- Failed --> D3["Verify DNS resolution & egress firewall rules"]
-    D2 -- Success --> D4{"Check OS Keyring Access"}
-    D4 -- Failed --> D5["Verify DPAPI / SecretService permissions"]
-    D4 -- Success --> D6{"Check Local SQLite Database"}
-    D6 --> D7["Review /var/log/netra/agent.log"]
+    Issue["Agent Status: OFFLINE or State Error"] --> D1["Run netra diagnostics"]
+    D1 --> D2{"Check Runtime Coordinator State"}
+    D2 -- Failed --> D3["Verify configuration TOML and environment variables"]
+    D2 -- Success --> D4{"Check Local SQLite Storage"}
+    D4 -- Corrupted --> D5["Run netra storage check --deep"]
+    D5 --> D6["Recover via netra storage recover --force-reinit"]
+    D4 -- Clean --> D7["Review runtime logs"]
 ```
 
 ---
@@ -197,14 +202,49 @@ flowchart TD
 # Check local SQLite storage health and quota utilization
 netra storage status
 
-# Run deep Tier 3 integrity verification
-netra diagnostics --deep-storage-check
+# Run Tier 2 quick check or Tier 3 deep integrity verification
+netra storage check
+netra storage check --deep
 
 # Inspect quarantined corrupted databases (forensic preservation directory)
 ls -la /var/lib/netra/quarantine_*/
 cat /var/lib/netra/quarantine_*/quarantine_meta.json
 
-# Explicit operator recovery (creates clean replacement without deleting quarantine archive)
+# Explicit operator recovery (quarantines active files and re-initializes clean store)
+# In interactive terminal: prompts for confirmation
+# In scripts/CI: requires explicit --force-reinit
 netra storage recover --force-reinit
+```
+
+---
+
+## 12. Control-Plane REST API Gateway Interactions (Phase 5)
+
+When the NETRA agent is running with the REST API enabled, endpoints can be queried via standard HTTP clients on `http://127.0.0.1:8443`:
+
+```bash
+# Check service liveness and component health
+curl -s http://127.0.0.1:8443/api/v1/health
+
+# Query version metadata
+curl -s http://127.0.0.1:8443/api/v1/version
+
+# Query runtime state and host platform details
+curl -s http://127.0.0.1:8443/api/v1/status
+
+# Generate environmental diagnostic bundle
+curl -s http://127.0.0.1:8443/api/v1/diagnostics
+
+# Fetch compile-time OpenAPI 3.1 schema
+curl -s http://127.0.0.1:8443/api/v1/openapi.json
+
+# Check local SQLite database disk footprint and table record counts
+curl -s http://127.0.0.1:8443/api/v1/storage/status
+
+# Execute Tier 2 quick_check (default) or Tier 3 deep integrity verification
+# Returns 200 OK with "passed": true (healthy) or "passed": false (corruption details)
+# Returns 409 Conflict if a deep check is already in flight
+curl -s http://127.0.0.1:8443/api/v1/storage/check
+curl -s "http://127.0.0.1:8443/api/v1/storage/check?deep=true"
 ```
 

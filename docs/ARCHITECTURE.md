@@ -89,21 +89,35 @@ NETRA enforces strict subsystem boundaries to prevent language proliferation and
 ```mermaid
 flowchart TD
     subgraph RustWorkspace["NETRA Rust Workspace Crate Boundaries"]
-        CLI["netra-cli<br/>• User input & CLI parsing (clap)<br/>• Stream separation (stdout JSON / stderr UI)<br/>• Standard exit codes (0, 1, 2, 3)"]
+        CLI["netra-cli<br/>• User input & CLI parsing (clap v4)<br/>• Canonical stream separation (stdout result/JSON, stderr UI/logs)<br/>• Standard exit codes (0, 1, 2, 3, 4)"]
+        API["netra-api (Phase 5 Gateway)<br/>• REST API Gateway (Axum v0.8 + Tower)<br/>• Localhost binding (127.0.0.1:8443)<br/>• OpenAPI 3.1 schemas (utoipa)<br/>• Implements ComponentLifecycle"]
         PLATFORM["netra-platform<br/>• OS family definitions & traits<br/>• PlatformAdapter abstraction<br/>• Native OS integrations (Win32/Linux/macOS)"]
-        CORE["netra-core (Domain-Neutral Foundation)<br/>• Strongly-typed UUIDv7 IDs<br/>• Error taxonomy (NetraError)<br/>• Configuration & logging<br/>• Async lifecycle coordination (RuntimeState, Coordinator)"]
+        CORE["netra-core (Domain-Neutral Foundation)<br/>• Strongly-typed UUIDv7 IDs<br/>• Error taxonomy (NetraError)<br/>• Configuration & logging<br/>• Async lifecycle coordination (RuntimeState, Coordinator)<br/>• Local SQLite engine & repositories"]
 
         CLI -->|Consumes| CORE
-        PLATFORM -->|Consumes| CORE
         CLI -->|Instantiates| PLATFORM
+        API -->|Consumes| CORE
+        API -->|Instantiates| PLATFORM
+        PLATFORM -->|Consumes| CORE
     end
 
     subgraph Boundaries["Key Invariants"]
-        INV1["1. netra-core has ZERO internal workspace dependencies"]
-        INV2["2. No OS syscalls or presentation logic in netra-core"]
-        INV3["3. Future SQLite (Phase 3) & Security Scans (Phase 7) strictly decoupled"]
+        INV1["1. netra-core has ZERO internal workspace or HTTP dependencies"]
+        INV2["2. No OS syscalls, HTTP servers, or CLI logic in netra-core"]
+        INV3["3. API never calls raw SQL or OS syscalls directly; calls Core services"]
+        INV4["4. Phase 5 API strictly loopback-bound (127.0.0.1 / ::1) under host-local trust"]
     end
 ```
+
+### 3.1 REST API Architectural Boundary & Trust Assumptions (Phase 5)
+
+The `netra-api` crate establishes the following boundaries:
+1. **Host-Local Trust Assumption**: Phase 5 is an unauthenticated local diagnostic API. It relies on capability minimization (read-only diagnostics) to remain safe without full process authentication.
+2. **Loopback-Only Invariant**: The server binds exclusively to `127.0.0.1` and `::1`. Remote interfaces are prohibited in Phase 5.
+3. **Domain Layering**: Handlers in `netra-api` interact with `netra-core::runtime` and `netra-core::storage` repositories via `with_reader` / `with_writer`.
+4. **Lifecycle Ownership**: `RuntimeCoordinator` orchestrates the startup, health aggregation, and shutdown budget of `ApiService`.
+
+---
 
 ### Conceptual Architecture & Dependency Hierarchy
 

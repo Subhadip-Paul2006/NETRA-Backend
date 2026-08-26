@@ -3,48 +3,53 @@
 //! **Command-Line Interface & Diagnostic Tool for NETRA**
 //!
 //! `netra-cli` provides the user-facing CLI binary (`netra`) implementing the Unix
-//! philosophy of separation of concerns:
+//! philosophy of canonical stream separation:
 //!
-//! - **Standard Output (`stdout`)**: Exclusively reserved for machine-readable JSON data.
-//! - **Standard Error (`stderr`)**: Reserved for human diagnostic output, ANSI formatting, and progress banners.
-//! - **Standard Exit Codes**: `0` (Success), `1` (Operational Error), `2` (Policy Violation), `3` (Fatal Error).
-//!
-//! ## Architectural Invariants & Crate Boundaries
-//!
-//! 1. **Dependency Direction**: `netra-cli` consumes public APIs from `netra-core` and `netra-platform`.
-//!    Neither `netra-core` nor `netra-platform` depends on `netra-cli`.
-//! 2. **Interface Separation**: `netra-cli` contains no OS-specific security logic, no SQLite persistence
-//!    logic, and no remediation execution code.
+//! - **Standard Output (`stdout`)**: Exclusively reserved for primary command results (human formatted or pure JSON).
+//! - **Standard Error (`stderr`)**: Reserved for human diagnostic output, ANSI formatting, progress banners, warnings, and error messages.
+//! - **Standard Exit Codes**: `0` (Success), `1` (Operational Error), `2` (Policy Violation), `3` (Invalid Arguments), `4` (Degraded State).
 
 use std::process::ExitCode as StdExitCode;
+use std::sync::Arc;
 
 use clap::Parser;
-use serde_json::json;
 
-mod args;
-mod exit_codes;
-mod output;
-
-use args::{CliArgs, Commands};
-use exit_codes::ExitCode;
+use netra_cli::cli::{self, CliArgs};
+use netra_cli::commands;
+use netra_cli::errors::{CliError, ExitCode};
+use netra_cli::output::OutputPresenter;
 use netra_core::config::NetraConfig;
 use netra_core::logging::init_logging;
 use netra_core::runtime::RuntimeCoordinator;
-use netra_platform::{create_platform_adapter, detect_platform_info};
-use output::OutputPresenter;
+use netra_core::storage::DatabaseEngine;
+use netra_platform::create_platform_adapter;
 
 #[tokio::main]
 async fn main() -> StdExitCode {
-    let args = CliArgs::parse();
-    let presenter = OutputPresenter::new(args.json, args.quiet);
+    let args = match CliArgs::try_parse() {
+        Ok(a) => a,
+        Err(err) => {
+            // Clap handles --help and --version with exit code 0 automatically
+            let _ = err.print();
+            let code = if err.use_stderr() {
+                ExitCode::InvalidArguments
+            } else {
+                ExitCode::Success
+            };
+            return code.into();
+        }
+    };
 
-    // 1. Initialize configuration
+    let presenter = OutputPresenter::new(args.json, args.quiet, args.no_color);
+
+    // 1. Initialize configuration (CLI Flags > Environment Variables > TOML File > Defaults)
     let mut config = if let Some(path) = &args.config {
         match NetraConfig::from_file(path) {
             Ok(cfg) => cfg,
             Err(err) => {
-                presenter.emit_error("config", &err);
-                return ExitCode::OperationalError.into();
+                let cli_err = CliError::from(err);
+                presenter.emit_error("config", &cli_err);
+                return cli_err.exit_code.into();
             }
         }
     } else {
@@ -55,11 +60,12 @@ async fn main() -> StdExitCode {
 
     // 2. Initialize structured logging
     if let Err(err) = init_logging(&config.logging) {
-        presenter.emit_error("logging", &err);
-        return ExitCode::OperationalError.into();
+        let cli_err = CliError::from(err);
+        presenter.emit_error("logging", &cli_err);
+        return cli_err.exit_code.into();
     }
 
-    // 3. Handle worker mode immediately if --worker flag passed
+    // 3. Handle worker launcher mode immediately if --worker flag passed
     if args.worker {
         let token = args
             .ipc_token
@@ -69,35 +75,60 @@ async fn main() -> StdExitCode {
         return run_worker_process(token).await.into();
     }
 
-    // 4. Initialize RuntimeCoordinator and platform adapter for standard CLI
+    // 4. Initialize RuntimeCoordinator and components
     let coordinator = RuntimeCoordinator::new();
     let platform_adapter = create_platform_adapter();
 
     if let Err(err) = coordinator.register_component(platform_adapter).await {
-        presenter.emit_error("runtime_registration", &err);
-        return ExitCode::OperationalError.into();
+        let cli_err = CliError::from(err);
+        presenter.emit_error("runtime_registration", &cli_err);
+        return cli_err.exit_code.into();
+    }
+
+    // 5. Initialize Storage Engine
+    let storage_engine = Arc::new(DatabaseEngine::new(&config.storage));
+    if let Err(err) = coordinator.register_component(storage_engine.clone()).await {
+        let cli_err = CliError::from(err);
+        presenter.emit_error("storage_registration", &cli_err);
+        return cli_err.exit_code.into();
     }
 
     if let Err(err) = coordinator.initialize().await {
-        presenter.emit_error("runtime_init", &err);
-        return ExitCode::OperationalError.into();
+        let cli_err = CliError::from(err);
+        presenter.emit_error("runtime_init", &cli_err);
+        return cli_err.exit_code.into();
     }
 
     if let Err(err) = coordinator.start().await {
-        presenter.emit_error("runtime_start", &err);
-        return ExitCode::OperationalError.into();
+        let cli_err = CliError::from(err);
+        presenter.emit_error("runtime_start", &cli_err);
+        return cli_err.exit_code.into();
     }
 
-    // 5. Dispatch command
-    let code = match execute_command(&args, &config, &coordinator, &presenter).await {
+    // 6. Dispatch command
+    let code = match commands::dispatch(
+        &args,
+        &config,
+        &coordinator,
+        Some(&storage_engine),
+        &presenter,
+    )
+    .await
+    {
         Ok(code) => code,
         Err(err) => {
-            presenter.emit_error("execution", &err);
-            ExitCode::OperationalError
+            let cmd_name = match &args.command {
+                None | Some(cli::Commands::Status) => "status",
+                Some(cli::Commands::Diagnostics) => "diagnostics",
+                Some(cli::Commands::Storage(_)) => "storage",
+                Some(cli::Commands::Version) => "version",
+            };
+            presenter.emit_error(cmd_name, &err);
+            err.exit_code
         }
     };
 
-    // 6. Graceful shutdown of runtime
+    // 7. Graceful reverse teardown of runtime
     let _ = coordinator.shutdown().await;
 
     code.into()
@@ -132,309 +163,4 @@ async fn run_worker_process(token: String) -> ExitCode {
     }
 
     ExitCode::Success
-}
-
-async fn execute_command(
-    args: &CliArgs,
-    _config: &NetraConfig,
-    coordinator: &RuntimeCoordinator,
-    presenter: &OutputPresenter,
-) -> Result<ExitCode, netra_core::error::NetraError> {
-    match &args.command {
-        None | Some(Commands::Status) => {
-            let platform = detect_platform_info();
-            let state = coordinator.state().await;
-            let health = coordinator.health().await;
-            let summary = format!(
-                "NETRA Host Security Agent (v1.0.0-foundation)\n\
-                ─────────────────────────────────────────────────────────────\n\
-                  OS Family:       {}\n\
-                  Architecture:    {}\n\
-                  Hostname:        {}\n\
-                  Runtime State:   ● {}\n\
-                  Health Status:   ● {}\n\
-                ─────────────────────────────────────────────────────────────",
-                platform.os_family, platform.arch, platform.hostname, state, health
-            );
-
-            presenter.emit_success(
-                "status",
-                json!({
-                    "version": "1.0.0-foundation",
-                    "status": state.to_string(),
-                    "health": health.to_string(),
-                    "platform": platform,
-                }),
-                &summary,
-            );
-            Ok(ExitCode::Success)
-        }
-
-        Some(Commands::Diagnostics) => {
-            let platform = detect_platform_info();
-            let state = coordinator.state().await;
-            let health = coordinator.health().await;
-            let priv_str = if platform.is_elevated {
-                "ELEVATED"
-            } else {
-                "STANDARD_USER"
-            };
-            let summary = format!(
-                "NETRA Environment Diagnostics Bundle\n\
-                ─────────────────────────────────────────────────────────────\n\
-                  Platform:        {} ({})\n\
-                  Arch:            {}\n\
-                  Hostname:        {}\n\
-                  Privilege:       {}\n\
-                  Runtime State:   {}\n\
-                  Runtime Health:  {}\n\
-                  Foundation:      Ready for Phase 02 Execution\n\
-                ─────────────────────────────────────────────────────────────",
-                platform.os_family,
-                platform.os_version,
-                platform.arch,
-                platform.hostname,
-                priv_str,
-                state,
-                health
-            );
-
-            presenter.emit_success(
-                "diagnostics",
-                json!({
-                    "diagnostics": {
-                        "platform": platform,
-                        "runtime_state": "HEALTHY",
-                        "phase": "01_FOUNDATION",
-                    }
-                }),
-                &summary,
-            );
-            Ok(ExitCode::Success)
-        }
-
-        Some(Commands::Enroll(enroll_args)) => {
-            presenter.banner("Initiating device enrollment with token: [REDACTED]");
-            presenter.emit_success(
-                "enroll",
-                json!({
-                    "action": "enroll",
-                    "token_received": !enroll_args.token.is_empty(),
-                    "status": "SKELETON_READY",
-                    "message": "Device enrollment protocol scheduled for Phase 06 implementation",
-                }),
-                "✔ Device enrollment CLI interface verified (Phase 01 Foundation).",
-            );
-            Ok(ExitCode::Success)
-        }
-
-        Some(Commands::Scan(scan_args)) => {
-            presenter.emit_success(
-                "scan",
-                json!({
-                    "action": "scan",
-                    "all": scan_args.all,
-                    "network": scan_args.network,
-                    "firewall": scan_args.firewall,
-                    "processes": scan_args.processes,
-                    "fail_on": scan_args.fail_on,
-                    "status": "SKELETON_READY",
-                    "message": "Scanner capabilities scheduled for Phase 07 implementation",
-                }),
-                "✔ Security scanner CLI interface verified (Phase 01 Foundation).",
-            );
-            Ok(ExitCode::Success)
-        }
-
-        Some(Commands::Findings(findings_args)) => {
-            let action_desc = match &findings_args.action {
-                Some(args::FindingsSubcommand::List { severity }) => {
-                    format!("list (severity: {:?})", severity)
-                }
-                Some(args::FindingsSubcommand::Show { id }) => {
-                    format!("show finding {}", id)
-                }
-                None => "list (all)".to_string(),
-            };
-            presenter.emit_success(
-                "findings",
-                json!({
-                    "action": "findings",
-                    "query": action_desc,
-                    "total": 0,
-                    "findings": [],
-                    "status": "SKELETON_READY",
-                    "message": "Finding reasoning engine scheduled for Phase 11 implementation",
-                }),
-                "✔ Findings query CLI interface verified (Phase 01 Foundation).",
-            );
-            Ok(ExitCode::Success)
-        }
-
-        Some(Commands::Topology) => {
-            presenter.emit_success(
-                "topology",
-                json!({
-                    "action": "topology",
-                    "nodes": [],
-                    "links": [],
-                    "status": "SKELETON_READY",
-                    "message": "Topology engine scheduled for Phase 08 implementation",
-                }),
-                "✔ Topology reachability CLI interface verified (Phase 01 Foundation).",
-            );
-            Ok(ExitCode::Success)
-        }
-
-        Some(Commands::Service(svc_args)) => match &svc_args.action {
-            args::ServiceSubcommand::Run => {
-                presenter.banner("Starting NETRA Supervisor Daemon in foreground...");
-                let policy = netra_core::supervisor::WatchdogPolicy {
-                    restart_delay_ms: _config.runtime.restart_delay_ms,
-                    max_consecutive_crashes: _config.runtime.max_consecutive_crashes,
-                    ..Default::default()
-                };
-                let engine = netra_core::supervisor::SupervisorEngine::new(policy);
-                let _server = match netra_platform::create_ipc_server(None) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        presenter.emit_error("ipc_server_bind", &e);
-                        return Ok(ExitCode::OperationalError);
-                    }
-                };
-
-                presenter.emit_success(
-                    "service_run",
-                    json!({
-                        "status": "RUNNING",
-                        "transport": _server.transport_name(),
-                    }),
-                    "✔ Supervisor daemon running. Monitoring low-privilege worker process.",
-                );
-
-                let _ = engine.shutdown().await;
-                Ok(ExitCode::Success)
-            }
-            args::ServiceSubcommand::Status => {
-                let client = netra_platform::create_ipc_client(None);
-                match client {
-                    Ok(c) => match c.connect().await {
-                        Ok(mut stream) => {
-                            let req = netra_core::ipc::protocol::IpcEnvelope::new(
-                                netra_core::ipc::protocol::IpcPayload::CommandRequest {
-                                    command_id: "status_req".to_string(),
-                                    command_name: "SUPERVISOR_STATUS".to_string(),
-                                    parameters: json!({}),
-                                },
-                            );
-                            let _ = stream.send_envelope(req).await;
-                            presenter.emit_success(
-                                "service_status",
-                                json!({
-                                    "daemon_state": "ACTIVE",
-                                    "transport": c.transport_name(),
-                                }),
-                                "✔ NETRA Supervisor daemon is active and responding to IPC queries.",
-                            );
-                            Ok(ExitCode::Success)
-                        }
-                        Err(_) => {
-                            presenter.emit_success(
-                                "service_status",
-                                json!({
-                                    "daemon_state": "STOPPED",
-                                }),
-                                "ℹ NETRA Supervisor daemon is not running.",
-                            );
-                            Ok(ExitCode::Success)
-                        }
-                    },
-                    Err(_) => {
-                        presenter.emit_success(
-                            "service_status",
-                            json!({
-                                "daemon_state": "STOPPED",
-                            }),
-                            "ℹ NETRA Supervisor daemon is not running.",
-                        );
-                        Ok(ExitCode::Success)
-                    }
-                }
-            }
-            args::ServiceSubcommand::Start => {
-                presenter.emit_success(
-                    "service_start",
-                    json!({
-                        "action": "start",
-                        "status": "SCHEDULED",
-                    }),
-                    "✔ Background service start command acknowledged.",
-                );
-                Ok(ExitCode::Success)
-            }
-            args::ServiceSubcommand::Stop => {
-                presenter.emit_success(
-                    "service_stop",
-                    json!({
-                        "action": "stop",
-                        "status": "SCHEDULED",
-                    }),
-                    "✔ Background service stop command acknowledged.",
-                );
-                Ok(ExitCode::Success)
-            }
-        },
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_exit_codes() {
-        assert_eq!(ExitCode::Success.as_i32(), 0);
-        assert_eq!(ExitCode::OperationalError.as_i32(), 1);
-        assert_eq!(ExitCode::PolicyFailure.as_i32(), 2);
-        assert_eq!(ExitCode::InvalidArguments.as_i32(), 3);
-    }
-
-    #[test]
-    fn test_cli_parsing_status() {
-        let args = CliArgs::try_parse_from(["netra", "status"]).unwrap();
-        assert!(matches!(args.command, Some(Commands::Status)));
-        assert!(!args.json);
-    }
-
-    #[test]
-    fn test_cli_parsing_json_flag() {
-        let args = CliArgs::try_parse_from(["netra", "--json", "diagnostics"]).unwrap();
-        assert!(matches!(args.command, Some(Commands::Diagnostics)));
-        assert!(args.json);
-    }
-
-    #[test]
-    fn test_cli_parsing_scan_flags() {
-        let args =
-            CliArgs::try_parse_from(["netra", "scan", "--all", "--fail-on", "HIGH"]).unwrap();
-        if let Some(Commands::Scan(scan_args)) = args.command {
-            assert!(scan_args.all);
-            assert_eq!(scan_args.fail_on.as_deref(), Some("HIGH"));
-        } else {
-            panic!("Expected scan command");
-        }
-    }
-
-    #[test]
-    fn test_cli_parsing_findings() {
-        let args = CliArgs::try_parse_from(["netra", "findings", "show", "fnd_01h8c4"]).unwrap();
-        if let Some(Commands::Findings(f_args)) = args.command {
-            assert!(matches!(
-                f_args.action,
-                Some(args::FindingsSubcommand::Show { ref id }) if id == "fnd_01h8c4"
-            ));
-        } else {
-            panic!("Expected findings command");
-        }
-    }
 }

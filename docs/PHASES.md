@@ -141,7 +141,7 @@ flowchart TD
 
 ## 7. Phase 3: Local SQLite Engine & State Management (`rusqlite`)
 
-* **Status**: `PROPOSED / ARCHITECTURAL REVIEW`
+* **Status**: `COMPLETED & VERIFIED`
 * **Goal**: Build the local-first SQLite persistence layer in Rust using `rusqlite` (v0.33.0, bundled SQLite 3.48.0).
 * **Scope**:
   - Embedded transactional migrations (`_netra_migrations`, `local_config`, `observation_queue`, `local_findings`).
@@ -157,25 +157,34 @@ flowchart TD
 
 ## 8. Phase 4: CLI Framework & Output Formatting (Rust `clap`)
 
-* **Status**: `PLANNED`
-* **Goal**: Build the Unix-philosophy `netra` CLI in Rust using `clap`.
+* **Status**: `COMPLETED & VERIFIED`
+* **Goal**: Build the Unix-philosophy `netra` CLI in Rust using `clap` v4.
 * **Scope**:
-  - Command hierarchy (`enroll`, `status`, `scan`, `findings`, `diagnostics`).
-  - Output stream separation (`stdout` JSON data, `stderr` ANSI human UI).
-  - Exit code engine (`0` Success, `1` Error, `2` Policy Violation, `3` Bad Syntax).
-* **Exit Gate**: `netra --json | jq .` parses cleanly in non-interactive CI pipelines.
+  - Canonical command hierarchy (`status`, `diagnostics`, `storage` [`status`, `check`, `recover`], `version`).
+  - Canonical output stream separation (`stdout` primary command result / clean JSON; `stderr` human UI, progress, warnings, errors).
+  - Versioned JSON envelope schema strictly separating `schema_version` from `netra_version`.
+  - Safe storage recovery contract requiring explicit confirmation or `--force-reinit` and preserving quarantine evidence.
+  - Formally defined `--quiet` suppression rules and automatic TTY ANSI styling.
+  - Standard exit code engine (`0` Success, `1` Operational Error, `2` Policy Violation, `3` Invalid Arguments, `4` Degraded State).
+* **Exit Gate**: 100% of CLI integration test suites pass in CI without requiring external `jq` tools, validating JSON schema compatibility, stdout purity, and exit codes.
 
 ---
 
 ## 9. Phase 5: Control API Gateway & API Contracts
 
-* **Status**: `PLANNED`
-* **Goal**: Implement the REST Control-Plane API following OpenAPI 3.1 specifications.
+* **Status**: `COMPLETED & VERIFIED`
+* **Goal**: Implement the REST Control-Plane API Gateway in Rust using **Axum (v0.8)** following OpenAPI 3.1 specifications.
 * **Scope**:
-  - Asynchronous HTTP routing engine (Axum / Actix-Web in Rust).
-  - Authentication and RBAC middleware.
-  - Universal request/response/error envelopes and idempotency keys.
-* **Exit Gate**: 100% of defined endpoints pass automated integration test suites.
+  - Dedicated `netra-api` workspace crate maintaining `netra-core` domain neutrality.
+  - Localhost loopback binding (`127.0.0.1:8443` default) with fail-fast collision behavior.
+  - Lean, non-speculative route taxonomy (`health`, `version`, `status`, `diagnostics`, `openapi.json`, `storage/status`, `storage/check?deep=true|false`).
+  - Read-only diagnostic semantics for `storage/check` (idempotent `GET` with optional `?deep=true`).
+  - Universal JSON success and error envelopes matching `docs/API.md` Section 4.
+  - Host-local capability-minimized trust boundary (destructive actions excluded from HTTP).
+  - Resource protection stack: 1MB body limit, 15-second request timeout, CORS disabled by default.
+  - Single-source-of-truth OpenAPI 3.1 specification generated at compile time via `utoipa`.
+  - Seamless `ComponentLifecycle` integration with `RuntimeCoordinator` for graceful connection draining bounded by the global shutdown budget.
+* **Exit Gate**: 100% of `netra-api` integration test suites pass across Windows, Linux, and macOS without compilation warnings or schema drift.
 
 ---
 

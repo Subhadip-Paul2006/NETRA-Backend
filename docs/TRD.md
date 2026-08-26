@@ -106,6 +106,27 @@ flowchart LR
 * **Heartbeat & Watchdog**: Worker sends telemetry heartbeat every 5.0 seconds; supervisor declares worker hung if missing for 15.0 seconds.
 * **Crash Recovery**: Sub-2s auto-restart for isolated crash; exponential backoff ($2\text{s} \to 4\text{s} \to 8\text{s}$) and 5-crash circuit breaker per 300s window.
 
+### 4.3 Control-Plane REST API Gateway Specifications (Phase 5)
+* **Framework**: **Axum (v0.8)** with **Tower** and **Tower-HTTP** middleware.
+* **Binding Policy**: Strictly `127.0.0.1:8443` (IPv4 loopback) or `[::1]:8443` (IPv6 loopback). Binding to external/public network interfaces is prohibited in Phase 5.
+* **Fail-Fast Port Collision**: If the configured port is occupied, startup fails immediately with exit code `1` (`ERR_PORT_IN_USE`).
+* **Route Taxonomy**:
+  - `GET /api/v1/health` (Liveness probe and component health status)
+  - `GET /api/v1/version` (Version and build target metadata)
+  - `GET /api/v1/status` (Runtime state and platform attributes)
+  - `GET /api/v1/diagnostics` (Sanitized environment diagnostic bundle)
+  - `GET /api/v1/openapi.json` (OpenAPI 3.1 specification schema)
+  - `GET /api/v1/storage/status` (Local SQLite disk footprint & row counts)
+  - `GET /api/v1/storage/check?deep=true|false` (Read-only integrity check returning 200 OK with `passed: true|false` payload; 409 Conflict if already in flight)
+* **Evidence-Based Resource Controls**:
+  - Request body size limit: 1MB maximum payload ceiling (`RequestBodyLimitLayer`).
+  - Request execution timeout: 15-second timeout guard (`TimeoutLayer`).
+  - Deep check concurrency: Single-flight execution lock returning `409 Conflict` on concurrent runs.
+  - Storage memory bounding: SQLite page cache bounded via `PRAGMA cache_size = -2000` (~2MB).
+* **Caching Policy**: Emits `Cache-Control: no-store, no-cache, must-revalidate` for all live state endpoints.
+* **OpenAPI 3.1 Contract**: Compiled directly from Rust API types via `utoipa` (single source of truth).
+* **Lifecycle Teardown**: Implements `ComponentLifecycle`; stops accepting new connections and gracefully drains in-flight requests bounded by `RuntimeCoordinator`'s global timeout budget.
+
 ---
 
 ## 5. Cryptographic Identity & Attestation Specifications
@@ -178,11 +199,13 @@ flowchart LR
 ## 12. CLI Interface Technical Specifications (Rust `clap`)
 
 * **Binary Name**: `netra` (or `netra.exe` on Windows).
-* **Framework**: Rust `clap` (derive API).
-* **Stream Separation**:
-  - `stdout`: Pure structured data (JSON when `--json` flag is provided).
-  - `stderr`: Human UI elements (spinners, progress bars, colored ANSI tables).
-* **Exit Codes**: `0` (Success), `1` (Operational Error), `2` (Policy Failure), `3` (Syntax Error).
+* **Framework**: Rust `clap` v4 (derive API).
+* **Canonical Stream Separation**:
+  - `stdout`: Command primary result / formatted table; **100% valid JSON** when `--json` flag is provided (unpolluted by progress, banners, or ANSI codes).
+  - `stderr`: Human UI elements (spinners, progress bars, colored ANSI tables, warnings, errors, and structured logs).
+* **JSON Contract**: Separates `schema_version` (JSON envelope contract version) and `netra_version` (application binary version).
+* **Exit Codes**: `0` (Success), `1` (Operational Error), `2` (Policy Failure), `3` (Invalid Arguments), `4` (Degraded State).
+* **Acceptance Testing**: Canonical CI verification uses native Rust integration tests (`serde_json`) to validate JSON schema, exit codes, and stdout purity without mandatory external `jq` tooling.
 
 ---
 

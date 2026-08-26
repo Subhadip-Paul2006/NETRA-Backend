@@ -86,6 +86,7 @@ Every enrolled agent host is identified by an **Ed25519 (RFC 8032)** asymmetric 
 * **Filesystem DACLs & Permissions**: Parent directory is restricted to `0700` permissions; local database files (`agent.db`, `agent.db-wal`, `agent.db-shm`) are restricted to `0600` permissions (accessible exclusively by the executing user SID or daemon owner).
 * **Secret Segregation Boundary**: Asymmetric private keys (Ed25519) and gateway authentication tokens are **strictly prohibited** from SQLite plaintext storage; they are managed exclusively by OS hardware-backed keyrings (DPAPI / SecretService / Keychain in Phase 6).
 * **Safe 6-Step Quarantine Directory Protocol**: When corruption is detected, active handles are closed, database files are isolated into a dedicated `quarantine_<TIMESTAMP>/` directory, and an adjacent `quarantine_meta.json` recording SHA-256 hashes, file sizes, and corruption errors is generated. Silent automated file deletion is strictly prohibited.
+* **Storage Recovery Safeguards**: The manual operator command `netra storage recover` requires explicit operator confirmation in interactive mode or `--force-reinit` in non-interactive/CI mode. Recovery strictly archives existing database, WAL, and SHM files to a quarantine directory before re-initializing a clean store. Recovery is never invoked implicitly from health checks or status commands.
 * **Atomic Clean-Shutdown Marker Protocol**: `.runtime_active` tracks process session ownership and prevents multi-instance file conflicts. `.clean_shutdown` is written atomically only after handle closure and checkpoint completion to reliably detect crashes and trigger Tier 2 `PRAGMA quick_check;`.
 * **Memory Scrubbing**: Sensitive cryptographic buffers in RAM are zeroed (`zeroize` crate) immediately after signature operations.
 
@@ -97,9 +98,50 @@ The Local IPC link between the Supervisor and Worker processes constitutes a hig
 3. **Session Invalidation on Restart**: Every worker restart completely invalidates the previous IPC session. The supervisor generates a fresh 256-bit token for the new instance, rendering previous tokens or stale sockets useless.
 4. **Frame Guard & Parsing Safety**: Length-delimited framing strictly enforces a `1,048,576` byte (1MB) maximum payload size. Frames exceeding this limit or containing malformed JSON are dropped immediately without heap allocation exhaustion.
 
----
+### 4.3 REST API Gateway Trust Boundary & Threat Model (Phase 5)
 
-## 5. Control Plane & Multi-Tenant Row-Level Security (RLS)
+The Phase 5 REST API Gateway (`netra-api`) introduces an HTTP interface governed by an **unauthenticated host-local trust assumption and capability minimization**:
+
+```mermaid
+flowchart TD
+    subgraph Host["Host Environment Trust Boundary"]
+        subgraph AttackVectors["Local Threat Actors"]
+            L1["Other Local OS User Accounts"]
+            L2["Unprivileged Local Processes (Same User)"]
+            L3["Browser DNS Rebinding / Localhost CSRF"]
+        end
+
+        subgraph Defenses["Phase 5 Security Controls"]
+            D1["1. Bind strictly to 127.0.0.1 / ::1 (Loopback Only)"]
+            D2["2. Remote/Public Binding Prohibited (No allow_remote)"]
+            D3["3. CORS Disabled (Zero browser cross-origin access)"]
+            D4["4. Capability Minimization (Read-only diagnostics only)"]
+            D5["5. Zero Destructive Endpoints (Recovery blocked on HTTP)"]
+            D6["6. Single-Flight Lock for Deep Storage Checks (409 Conflict)"]
+            D7["7. Strict Data Classification (Secrets/Paths Redacted)"]
+            D8["8. Cache-Control: no-store (Prevent local disk caching)"]
+        end
+
+        subgraph CoreService["netra-core / Storage Engine"]
+            S1["Read-Only Repository Access"]
+        end
+
+        AttackVectors --> Defenses
+        Defenses --> CoreService
+    end
+```
+
+1. **Security Model Definition**: Formally documented as *"Unauthenticated local diagnostic API under a host-local trust assumption"*.
+   - **Transport Exposure**: Binding strictly to loopback (`127.0.0.1` / `::1`) eliminates external network accessibility.
+   - **Authentication**: Phase 5 does **not** authenticate local caller processes; any local process under the same OS context can connect.
+   - **Authorization & Capability Minimization**: Because no local authentication is present, the API scope is strictly constrained to safe, read-only diagnostic inspection (`health`, `version`, `status`, `diagnostics`, `storage/status`, `storage/check`). Destructive actions (such as `netra storage recover`) are **strictly forbidden** from HTTP exposure.
+2. **Loopback-Only Invariant**: Phase 5 supports exclusively IPv4 loopback (`127.0.0.1`) and IPv6 loopback (`::1`). Remote/LAN binding is completely disabled in Phase 5 (no `allow_remote` toggle exists). Remote access is deferred to Phase 6+ with cryptographic authentication.
+3. **Data Classification Boundary**: `GET /api/v1/diagnostics` strictly redacts and excludes tokens, credentials, private keys, environment variable dumps, and arbitrary filesystem trees.
+4. **Single-Flight Abuse Protection & Check Semantics**: Deep database integrity checks (`GET /api/v1/storage/check?deep=true`) utilize an in-memory lock (`AtomicBool`). Concurrent requests receive `409 Conflict` (`ERR_INTEGRITY_CHECK_IN_PROGRESS`) to prevent resource exhaustion attacks. When the check probe executes cleanly, `200 OK` is returned with `passed: true` for clean databases or `passed: false` with detailed corruption diagnostics for damaged databases. Operational engine/I/O execution failures return `500`/`503`.
+5. **Anti-Caching Policy**: Live diagnostic endpoints emit `Cache-Control: no-store, no-cache, must-revalidate` to prevent local browser or proxy caching of runtime state.
+6. **Phase 6+ Authentication Extension Point**: When remote control is enabled in Phase 6, asymmetric Ed25519 request signature verification and JWT Bearer tokens will be inserted into the Axum Tower middleware pipeline before route handling.
+
+---
 
 Multi-tenant data isolation is enforced at the **PostgreSQL database engine layer**, completely eliminating application-level tenant leakage:
 

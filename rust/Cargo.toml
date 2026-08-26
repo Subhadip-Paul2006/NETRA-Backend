@@ -2,7 +2,8 @@
 members = [
     "crates/netra-core",
     "crates/netra-platform",
-    "crates/netra-cli"
+    "crates/netra-cli",
+    "crates/netra-api"
 ]
 resolver = "2"
 
@@ -19,6 +20,7 @@ description = "Network & Endpoint Threat Reconnaissance Architecture"
 # Internal workspace crates
 netra-core = { path = "crates/netra-core", version = "0.1.0" }
 netra-platform = { path = "crates/netra-platform", version = "0.1.0" }
+netra-api = { path = "crates/netra-api", version = "0.1.0" }
 
 # Serialization & Configuration
 serde = { version = "1.0.219", features = ["derive"] }
@@ -40,10 +42,17 @@ tokio-util = { version = "0.7.13", features = ["codec"] }
 futures-util = { version = "0.3.31", default-features = false, features = ["sink", "std", "async-await"] }
 async-trait = "0.1.87"
 
+# HTTP REST Gateway & OpenAPI (Phase 5)
+axum = { version = "0.8.1", default-features = false, features = ["tokio", "http1", "json", "matched-path", "original-uri", "query"] }
+tower = { version = "0.5.2", features = ["util", "timeout", "limit"] }
+tower-http = { version = "0.6.2", features = ["trace", "timeout", "limit", "set-header", "cors"] }
+utoipa = { version = "5.3.1", features = ["uuid", "chrono"] }
+
 # CLI & Output Presentation
 clap = { version = "4.5.31", features = ["derive", "env"] }
 
 # Structured Logging & Telemetry
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
+
 

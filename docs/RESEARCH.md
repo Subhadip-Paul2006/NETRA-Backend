@@ -135,6 +135,20 @@ Security literature often conflates resource throttling with security sandboxing
 | **gRPC over Localhost** | HTTP/2 TCP | Protobuf | High binary overhead (~3MB extra crates); weak local DACL | **Rejected** (Unnecessary weight for local IPC) |
 | **★ Length-Delimited JSON over Named Pipes / UDS** | OS Sockets / Pipes | 4-byte BE + JSON | **Strong: OS DACLs (`0600`) + Peer PID/UID check + Ephemeral Token** | **Selected Core Protocol** |
 
+### 7.4 Control-Plane REST API Framework Evaluation
+
+A qualitative comparative evaluation between the leading Rust asynchronous HTTP frameworks was conducted for Phase 5:
+
+| Evaluation Dimension | **Axum (Selected)** | **Actix-Web (Researched / Rejected)** |
+| :--- | :--- | :--- |
+| **Async Runtime Integration** | Native integration with `tokio` (maintained by Tokio core team); uses standard `tokio::net` and `hyper`. | Custom actor-oriented runtime (`actix-rt`) layered over Tokio, introducing additional scheduler abstractions. |
+| **Middleware Architecture** | Built 100% on standard `tower::Service` and `tower-http` ecosystem (limits, tracing, timeouts, compression). | Uses custom `actix_web::middleware` trait hierarchy, preventing direct reuse of Tower ecosystem middleware. |
+| **Type Safety & Extractors** | Declarative compile-time extractors (`FromRequest`, `FromRequestParts`, `IntoResponse`) with zero macro bloat. | Heavy procedural macro reflection and custom handler return types. |
+| **WebSocket Compatibility** | Native `axum::extract::ws::WebSocketUpgrade` built directly on `tokio-tungstenite`. | Separate `actix-ws` crate with distinct connection models. |
+| **Maintenance Simplicity** | Direct functional request handlers without actor state machine overhead. | Requires understanding Actix actor lifecycle models. |
+
+**Conclusion**: Axum is selected as the authoritative framework for NETRA's REST API layer due to its native alignment with Tokio, standard Tower middleware, and lower abstraction complexity.
+
 ---
 
 ## 8. Comprehensive Visual Inventory (59 Architectural Diagrams)

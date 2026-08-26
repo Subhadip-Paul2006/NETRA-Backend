@@ -19,6 +19,7 @@ pub fn init_logging(config: &LogConfig) -> Result<()> {
         if config.format.eq_ignore_ascii_case("json") {
             let json_layer = fmt::layer()
                 .json()
+                .with_writer(std::io::stderr)
                 .with_current_span(true)
                 .with_span_list(true)
                 .with_target(true);
@@ -35,6 +36,7 @@ pub fn init_logging(config: &LogConfig) -> Result<()> {
             }
         } else {
             let human_layer = fmt::layer()
+                .with_writer(std::io::stderr)
                 .with_ansi(!config.no_color)
                 .with_target(false)
                 .with_level(true);
