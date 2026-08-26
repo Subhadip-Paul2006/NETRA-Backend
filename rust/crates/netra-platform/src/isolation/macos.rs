@@ -29,6 +29,7 @@ impl ProcessIsolation for MacOSProcessIsolation {
     fn configure_command(&self, _cmd: &mut tokio::process::Command) -> Result<(), NetraError> {
         #[cfg(target_os = "macos")]
         {
+            use std::os::unix::process::CommandExt;
             let mem_limit = self.memory_limit_bytes;
             unsafe {
                 _cmd.pre_exec(move || {

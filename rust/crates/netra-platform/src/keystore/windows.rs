@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(windows)]
 use std::ptr;
 use tracing::debug;
 use zeroize::Zeroizing;
@@ -208,13 +209,12 @@ impl KeyStore for WindowsDpapiKeystore {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
     use tempfile::TempDir;
 
     #[tokio::test]
-    #[cfg(windows)]
     async fn test_windows_dpapi_keystore_lifecycle() {
         let temp_dir = TempDir::new().unwrap();
         let keystore = WindowsDpapiKeystore::new(temp_dir.path()).unwrap();

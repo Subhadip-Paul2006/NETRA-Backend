@@ -1,5 +1,9 @@
-use netra_cli::cli::{EnrollArgs, IdentityArgs, IdentitySubcommand, RotateArgs};
-use netra_cli::commands::identity::{execute_enroll, execute_identity};
+#[cfg(windows)]
+use netra_cli::cli::{EnrollArgs, RotateArgs};
+use netra_cli::cli::{IdentityArgs, IdentitySubcommand};
+#[cfg(windows)]
+use netra_cli::commands::identity::execute_enroll;
+use netra_cli::commands::identity::execute_identity;
 use netra_cli::errors::ExitCode;
 use netra_cli::output::OutputPresenter;
 use netra_core::config::NetraConfig;
@@ -20,16 +24,15 @@ async fn test_identity_cli_enroll_and_status_flow() {
         .unwrap();
     assert_eq!(exit1, ExitCode::Success);
 
-    // 2. Perform enrollment
-    let enroll_args = EnrollArgs {
-        token: "enroll_token_test_12345".to_string(),
-        gateway: "wss://127.0.0.1:8443/api/v1/agent/stream".to_string(),
-        #[cfg(feature = "insecure-dev-keystore")]
-        insecure_dev_keystore: false,
-    };
-
     #[cfg(windows)]
     {
+        // 2. Perform enrollment
+        let enroll_args = EnrollArgs {
+            token: "enroll_token_test_12345".to_string(),
+            gateway: "wss://127.0.0.1:8443/api/v1/agent/stream".to_string(),
+            #[cfg(feature = "insecure-dev-keystore")]
+            insecure_dev_keystore: false,
+        };
         let exit2 = execute_enroll(&enroll_args, &config, Some(&engine), &presenter)
             .await
             .unwrap();
