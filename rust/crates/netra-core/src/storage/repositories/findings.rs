@@ -248,6 +248,42 @@ impl FindingsRepository {
         Ok(entries)
     }
 
+    /// Lists all findings in the database ordered by last_seen descending.
+    pub fn list_all(conn: &Connection) -> StorageResult<Vec<FindingEntry>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT fingerprint, rule_id, severity, status, title, evidence_summary_json, occurrence_count, first_seen, last_seen
+                 FROM local_findings
+                 ORDER BY last_seen DESC",
+            )
+            .map_err(StorageError::Database)?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                let sev_str: String = row.get(2)?;
+                let status_str: String = row.get(3)?;
+                Ok(FindingEntry {
+                    fingerprint: row.get(0)?,
+                    rule_id: row.get(1)?,
+                    severity: sev_str.parse().unwrap_or(FindingSeverity::Medium),
+                    status: status_str.parse().unwrap_or(FindingStatus::Open),
+                    title: row.get(4)?,
+                    evidence_summary_json: row.get(5)?,
+                    occurrence_count: row.get(6)?,
+                    first_seen: row.get(7)?,
+                    last_seen: row.get(8)?,
+                })
+            })
+            .map_err(StorageError::Database)?;
+
+        let mut entries = Vec::new();
+        for row in rows {
+            entries.push(row.map_err(StorageError::Database)?);
+        }
+
+        Ok(entries)
+    }
+
     /// Marks an open finding as `RESOLVED`.
     pub fn resolve(conn: &Connection, fingerprint: &str) -> StorageResult<bool> {
         let now = Utc::now().to_rfc3339();

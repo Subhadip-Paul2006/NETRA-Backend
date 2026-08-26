@@ -123,6 +123,8 @@ async fn main() -> StdExitCode {
                 Some(cli::Commands::Storage(_)) => "storage",
                 Some(cli::Commands::Enroll(_)) => "enroll",
                 Some(cli::Commands::Identity(_)) => "identity",
+                Some(cli::Commands::Scan(_)) => "scan",
+                Some(cli::Commands::Findings(_)) => "findings",
                 Some(cli::Commands::Version) => "version",
             };
             presenter.emit_error(cmd_name, &err);

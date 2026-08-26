@@ -3,7 +3,9 @@
 //! Routes parsed CLI commands to dedicated handler implementations.
 
 pub mod diagnostics;
+pub mod findings;
 pub mod identity;
+pub mod scan;
 pub mod status;
 pub mod storage;
 
@@ -38,6 +40,12 @@ pub async fn dispatch(
         }
         Some(Commands::Identity(i_args)) => {
             identity::execute_identity(i_args, config, storage, presenter).await
+        }
+        Some(Commands::Scan(scan_args)) => {
+            scan::execute_scan(scan_args, config, storage, presenter).await
+        }
+        Some(Commands::Findings(findings_args)) => {
+            findings::execute_findings(findings_args, config, storage, presenter).await
         }
         Some(Commands::Version) => {
             let info = VersionInfo::current();

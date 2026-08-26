@@ -36,6 +36,8 @@ pub mod ipc;
 pub mod keystore;
 pub mod lifecycle;
 pub mod logging;
+pub mod observation;
+pub mod rules;
 pub mod runtime;
 pub mod storage;
 pub mod supervisor;
@@ -51,6 +53,19 @@ pub use ipc::{
     MAX_IPC_FRAME_SIZE,
 };
 pub use logging::init_logging;
+pub use observation::{
+    ConfidenceScore, FirewallObservationPayload, FirewallProfileRecord, Observation,
+    ObservationPayload, ObservationType, OsConfigObservationPayload, OsConfigRecord,
+    PostureScanner, PrivilegeStatus, ProcessObservationPayload, ProcessRecord, ScanCycleResult,
+    ScannerSupervisor, SensitivityLevel, ServiceObservationPayload, ServiceRecord,
+    ServiceStartType, ServiceState, SocketObservationPayload, SocketProtocol, SocketRecord,
+    TargetDescriptor, UserObservationPayload, UserRecord, OBSERVATION_SCHEMA_VERSION,
+    SCANNER_TIMEOUT_MS,
+};
+pub use rules::{
+    FindingRule, Fw001ProfileDisabledRule, Net001PlaintextPortRule, Net002UnrestrictedDbRule,
+    Os001SecureBootOffRule, RawFinding, RuleEngine, Svc001UnquotedPathRule, Usr001GuestEnabledRule,
+};
 pub use runtime::{
     ArcComponent, ComponentHealth, ComponentLifecycle, RuntimeCoordinator, RuntimeState,
     DEFAULT_SHUTDOWN_TIMEOUT_MS,

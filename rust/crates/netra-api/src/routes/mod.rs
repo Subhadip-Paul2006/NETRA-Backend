@@ -1,6 +1,8 @@
 pub mod diagnostics;
+pub mod findings;
 pub mod health;
 pub mod openapi;
+pub mod scan;
 pub mod status;
 pub mod storage;
 pub mod version;
@@ -19,7 +21,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/diagnostics", get(diagnostics::get_diagnostics))
         .route("/openapi.json", get(openapi::get_openapi_json))
         .route("/storage/status", get(storage::get_storage_status))
-        .route("/storage/check", get(storage::get_storage_check));
+        .route("/storage/check", get(storage::get_storage_check))
+        .route("/scan/status", get(scan::get_scan_status))
+        .route("/findings", get(findings::get_findings));
 
     Router::new().nest("/api/v1", api_v1).with_state(state)
 }

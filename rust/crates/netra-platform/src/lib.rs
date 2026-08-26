@@ -34,6 +34,7 @@ pub mod isolation;
 pub mod keystore;
 pub mod linux;
 pub mod macos;
+pub mod scanners;
 pub mod traits;
 pub mod windows;
 
@@ -42,6 +43,11 @@ pub use info::detect_platform_info;
 #[cfg(feature = "insecure-dev-keystore")]
 pub use keystore::create_insecure_dev_keystore;
 pub use keystore::create_platform_keystore;
+pub use scanners::{
+    create_all_platform_scanners, create_socket_scanner, PlatformFirewallScanner,
+    PlatformOsConfigScanner, PlatformProcessScanner, PlatformServiceScanner, PlatformSocketScanner,
+    PlatformUserScanner,
+};
 
 pub use ipc::{
     create_ipc_client, create_ipc_server, default_endpoint_name, IpcClient, IpcServer, IpcStream,

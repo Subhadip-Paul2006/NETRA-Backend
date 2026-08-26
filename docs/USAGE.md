@@ -88,14 +88,22 @@ $ sudo netra enroll --token enroll_sec_99a8b7c6d5e4f3a2
 ## 5. Running On-Demand Posture & Network Scans
 
 ```bash
-# 5.1 Run all standard posture audits (Sockets, Processes, Firewall, Users)
-$ netra scan --all
+# 5.1 Run all 6 security posture audits (Sockets, Processes, Firewall, Users, Services, OS Config)
+$ netra scan
 
-# 5.2 Run network socket and listening port reconnaissance only
-$ netra scan --network
+# 5.2 Run with optional executable binary SHA-256 hashing (50MB cap)
+$ netra scan --hash-binaries
 
-# 5.3 Run host packet filter and firewall rule audit only
-$ netra scan --firewall
+# 5.3 Run single domain reconnaissance only
+$ netra scan sockets
+$ netra scan process
+$ netra scan firewall
+$ netra scan users
+$ netra scan services
+$ netra scan os
+
+# 5.4 Emit machine-readable JSON envelope
+$ netra scan --json
 ```
 
 ---
@@ -103,24 +111,17 @@ $ netra scan --firewall
 ## 6. Investigating Findings & Cryptographic Evidence
 
 ```bash
-$ netra findings show fnd_01h8c4d5e6
+# 6.1 List all deduplicated findings
+$ netra findings list
 
-Finding: Insecure SMBv1 Service Bound to External Subnet
-────────────────────────────────────────────────────────────────────────
-  ID:             fnd_01h8c4d5e6
-  Severity:       HIGH
-  Category:       NETWORK_SECURITY
-  Fingerprint:    a9f8e7d6c5b4... (SHA-256 Verified)
-  MITRE ATT&CK:   T1021.002 (SMB/Windows Admin Shares)
-  Discovered:     2026-08-24 12:15:32 UTC
+# 6.2 Filter findings by severity (CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL)
+$ netra findings list --severity CRITICAL
 
-Description:
-  TCP port 445 is listening on interface 'eth0' (192.168.1.50) without
-  firewall isolation, accessible to adjacent subnet neighbors.
+# 6.3 Filter findings by status (OPEN, RESOLVED, SUPPRESSED)
+$ netra findings list --status OPEN
 
-Recommended Remediation:
-  1. Disable SMBv1 via OS registry or configuration.
-  2. Bind SMB service strictly to localhost or apply inbound firewall block.
+# 6.4 Stream findings into jq or CI automation
+$ netra findings list --json | jq '.data[] | {rule: .rule_id, title: .title, occurrences: .occurrence_count}'
 ```
 
 ---

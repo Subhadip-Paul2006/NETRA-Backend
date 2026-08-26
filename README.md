@@ -163,11 +163,11 @@ flowchart TD
 ## 7. Open-Source Status, Acknowledgements & License
 
 * **Open-Source Status**: Active Academic & Research Project.
-* **Development Status**: **Phase 0** through **Phase 6** (**Device Identity, Ed25519 Cryptography, OS KeyStore, Request Signing, Two-Stage Enrollment, Key Rotation & WSS Protocol**) are `COMPLETED & VERIFIED`. Implementation proceeds strictly along the milestone roadmap in [docs/PHASES.md](./docs/PHASES.md).
-* **KeyStore & Platform Verification**:
-  - **Windows (x86_64)**: `IMPLEMENTED / NATIVE TESTED` (Win32 DPAPI).
-  - **Linux (x86_64 / aarch64)**: `IMPLEMENTED / NOT NATIVE TESTED` (D-Bus Secret Service; fails closed with `ERR_KEYSTORE_UNAVAILABLE` on headless servers without a secret provider).
-  - **macOS (Apple Silicon / Intel)**: `IMPLEMENTED / NOT NATIVE TESTED` (Apple Keychain stub).
+* **Development Status**: **Phase 0** through **Phase 7** (**Core Security Observation Subsystems, 6 Native Posture Scanners, Canonical Evidence Hashing, Deterministic Rule Engine, Finding Deduplication, CLI & REST Presentation**) are `COMPLETED & VERIFIED`. Implementation proceeds strictly along the milestone roadmap in [docs/PHASES.md](./docs/PHASES.md).
+* **KeyStore & Posture Scanner Platform Verification**:
+  - **Windows (x86_64)**: `IMPLEMENTED / NATIVE TESTED` (Win32 DPAPI, IP Helper Sockets, Toolhelp32 Processes, Registry Firewalls, NetUserEnum Users, SCM Services, Registry OS Config).
+  - **Linux (x86_64 / aarch64)**: `IMPLEMENTED / FIXTURE TESTED` (/proc/net Socket Parser, /proc Process Parser, /etc/passwd User Parser, Secret Service KeyStore fails closed with `ERR_KEYSTORE_UNAVAILABLE` on headless servers).
+  - **macOS (Apple Silicon / Intel)**: `IMPLEMENTED / NOT NATIVE TESTED` (BSD Sysctl Sockets, libproc Processes, Keychain KeyStore).
   - **Development-Only Backend**: `insecure-dev-keystore` is strictly compile-time gated for isolated CI/testing (`#[cfg(feature = "insecure-dev-keystore")]`), completely absent in release binaries, and MUST NOT be used in production. Phase 7 and future capabilities strictly require production OS key storage.
 * **License**: `License: To be selected.` (Apache 2.0 / MIT candidate pending final packaging).
 * **Acknowledgements & Academic References**:

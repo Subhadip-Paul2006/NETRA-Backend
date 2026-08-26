@@ -18,6 +18,7 @@ futures-util = { workspace = true }
 zeroize = { workspace = true }
 hex = { workspace = true }
 base64 = { workspace = true }
+sha2 = { workspace = true }
 
 [features]
 default = []
@@ -32,7 +33,13 @@ windows-sys = { version = "0.59.0", features = [
     "Win32_System_Memory",
     "Win32_Security",
     "Win32_Security_Cryptography",
-    "Win32_Storage_FileSystem"
+    "Win32_Storage_FileSystem",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_Networking_WinSock",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Services",
+    "Win32_System_Registry",
+    "Win32_NetworkManagement_NetManagement",
 ] }
 
 [target.'cfg(unix)'.dependencies]

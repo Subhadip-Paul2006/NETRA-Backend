@@ -63,6 +63,12 @@ pub enum Commands {
     /// Query and manage cryptographic device identity and KeyStore keys.
     Identity(IdentityArgs),
 
+    /// Execute host security posture scans across observation domains.
+    Scan(ScanArgs),
+
+    /// Query and inspect deduplicated local security posture findings.
+    Findings(FindingsArgs),
+
     /// Display detailed build, commit, and platform target metadata.
     Version,
 }
@@ -140,4 +146,37 @@ pub struct RecoverArgs {
     /// Skip interactive confirmation prompt and immediately quarantine/re-initialize store.
     #[arg(long)]
     pub force_reinit: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct ScanArgs {
+    /// Specific observation domain to scan (sockets, process, firewall, users, services, os). If omitted, scans all domains.
+    pub domain: Option<String>,
+
+    /// Enable optional binary SHA-256 hashing during process scanning (disabled by default).
+    #[arg(long)]
+    pub hash_binaries: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct FindingsArgs {
+    #[command(subcommand)]
+    pub action: Option<FindingsSubcommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum FindingsSubcommand {
+    /// List recorded posture findings with optional severity and status filtering.
+    List(FindingsListArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct FindingsListArgs {
+    /// Filter findings by severity (CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL).
+    #[arg(short, long)]
+    pub severity: Option<String>,
+
+    /// Filter findings by status (OPEN, RESOLVED, SUPPRESSED).
+    #[arg(short, long)]
+    pub status: Option<String>,
 }

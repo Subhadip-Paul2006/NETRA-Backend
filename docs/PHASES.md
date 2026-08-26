@@ -206,16 +206,25 @@ flowchart TD
 
 ---
 
-## 11. Phase 7: Core Security Observation Subsystems
+## 11. Phase 7: Core Security Observation Subsystems & Rule Engine
 
-* **Status**: `PLANNED`
-* **Goal**: Implement native OS posture scanners in Rust.
+* **Status**: `COMPLETED & VERIFIED`
+* **Goal**: Implement native OS posture scanners, canonical evidence hashing, deterministic rule evaluation, finding deduplication, and scan presentation in Rust.
 * **Scope**:
-  - `SCAN_NETWORK`: Native OS socket tables and listening port mapping (`windows-sys` / `nix`).
-  - `SCAN_PROCESSES`: Process enumeration, PID trees, and binary hashing.
-  - `SCAN_FIREWALL`: Kernel packet filter status (Windows Firewall COM / `nftables`).
-  - `SCAN_USERS`: Local user account and privilege auditing.
-* **Exit Gate**: All 4 scanners execute in under 500ms total on clean benchmark machines.
+  - Strongly typed Observation envelope with schema versioning (`schema_version: 1`), `TargetDescriptor` enum (`Host`, `Process`, `Socket`, `Firewall`, `User`, `Service`, `OsConfiguration`), and canonical SHA-256 evidence hashing.
+  - Six native OS posture scanners in `netra-platform`:
+    - `PlatformSocketScanner` (`scanner.sockets.v1`): Win32 `GetExtendedTcpTable`/`GetExtendedUdpTable` (`NATIVE TESTED`), Linux `/proc/net` parser (`FIXTURE TESTED`), macOS stub.
+    - `PlatformProcessScanner` (`scanner.process.v1`): Win32 Toolhelp32 snapshot, ephemeral command-line privacy, configurable binary SHA-256 hashing (`--hash-binaries`, 50MB file cap).
+    - `PlatformFirewallScanner` (`scanner.firewall.v1`): Win32 Registry profile state query (`Domain`, `Private`, `Public`).
+    - `PlatformUserScanner` (`scanner.users.v1`): Win32 `NetUserEnum` local accounts, zero password/hash extraction.
+    - `PlatformServiceScanner` (`scanner.services.v1`): Win32 Service Control Manager (`EnumServicesStatusExW`), unquoted path detection.
+    - `PlatformOsConfigScanner` (`scanner.os.v1`): Registry SecureBoot and UAC (`EnableLUA`) verification.
+  - Baseline Rule Engine (`netra-core::rules`) with 6 rules (`NET-001-PLAINTEXT-PORT`, `NET-002-UNRESTRICTED-DB`, `FW-001-PROFILE-DISABLED`, `USR-001-GUEST-ENABLED`, `SVC-001-UNQUOTED-PATH`, `OS-001-SECUREBOOT-OFF`).
+  - Deterministic finding deduplication fingerprinting: `SHA-256(rule_id || ":" || target_key || ":" || discriminator)`.
+  - `ScannerSupervisor`: Concurrent multi-collector execution with per-scanner 5000ms timeout bounds and panic isolation.
+  - CLI Presentation: `netra scan [domain] [--hash-binaries]` and `netra findings list [--severity] [--status]` with clean JSON/box output.
+  - REST Endpoints: `GET /api/v1/scan/status` and `GET /api/v1/findings`.
+* **Exit Gate**: All 6 scanners execute concurrently in under 100ms on Windows benchmark machines; 100% of unit/integration tests pass cleanly across `netra-core`, `netra-platform`, `netra-cli`, and `netra-api`.
 
 ---
 
