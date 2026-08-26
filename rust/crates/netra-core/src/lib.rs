@@ -31,7 +31,9 @@
 pub mod config;
 pub mod error;
 pub mod id;
+pub mod identity;
 pub mod ipc;
+pub mod keystore;
 pub mod lifecycle;
 pub mod logging;
 pub mod runtime;

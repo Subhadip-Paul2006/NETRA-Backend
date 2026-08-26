@@ -57,8 +57,57 @@ pub enum Commands {
     /// Inspect and manage embedded SQLite database and storage engine.
     Storage(StorageArgs),
 
+    /// Enroll agent host with upstream control plane using single-use bootstrap token.
+    Enroll(EnrollArgs),
+
+    /// Query and manage cryptographic device identity and KeyStore keys.
+    Identity(IdentityArgs),
+
     /// Display detailed build, commit, and platform target metadata.
     Version,
+}
+
+#[derive(Debug, Args)]
+pub struct EnrollArgs {
+    /// Single-use bootstrap token issued by operator or control plane.
+    #[arg(short, long, value_name = "TOKEN")]
+    pub token: String,
+
+    /// Upstream control gateway URL.
+    #[arg(
+        short,
+        long,
+        value_name = "URL",
+        default_value = "wss://127.0.0.1:8443/api/v1/agent/stream"
+    )]
+    pub gateway: String,
+
+    /// Explicitly enable unencrypted file-based development KeyStore (ONLY available in dev test builds).
+    #[cfg(feature = "insecure-dev-keystore")]
+    #[arg(long)]
+    pub insecure_dev_keystore: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct IdentityArgs {
+    #[command(subcommand)]
+    pub action: Option<IdentitySubcommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum IdentitySubcommand {
+    /// Display cryptographic device ID, active public key, and KeyStore health.
+    Status,
+
+    /// Trigger policy-driven or emergency key rotation.
+    Rotate(RotateArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct RotateArgs {
+    /// Perform immediate emergency key rotation and revocation.
+    #[arg(long)]
+    pub emergency: bool,
 }
 
 #[derive(Debug, Args)]
@@ -88,7 +137,7 @@ pub struct CheckArgs {
 
 #[derive(Debug, Args)]
 pub struct RecoverArgs {
-    /// Force recovery without interactive confirmation in non-interactive/CI environments.
+    /// Skip interactive confirmation prompt and immediately quarantine/re-initialize store.
     #[arg(long)]
     pub force_reinit: bool,
 }

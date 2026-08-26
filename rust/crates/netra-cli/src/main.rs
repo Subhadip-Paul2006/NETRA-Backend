@@ -121,6 +121,8 @@ async fn main() -> StdExitCode {
                 None | Some(cli::Commands::Status) => "status",
                 Some(cli::Commands::Diagnostics) => "diagnostics",
                 Some(cli::Commands::Storage(_)) => "storage",
+                Some(cli::Commands::Enroll(_)) => "enroll",
+                Some(cli::Commands::Identity(_)) => "identity",
                 Some(cli::Commands::Version) => "version",
             };
             presenter.emit_error(cmd_name, &err);

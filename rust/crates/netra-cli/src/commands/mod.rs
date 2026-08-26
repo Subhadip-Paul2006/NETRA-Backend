@@ -3,6 +3,7 @@
 //! Routes parsed CLI commands to dedicated handler implementations.
 
 pub mod diagnostics;
+pub mod identity;
 pub mod status;
 pub mod storage;
 
@@ -31,6 +32,12 @@ pub async fn dispatch(
         }
         Some(Commands::Storage(s_args)) => {
             storage::execute(&s_args.action, config, storage, presenter).await
+        }
+        Some(Commands::Enroll(e_args)) => {
+            identity::execute_enroll(e_args, config, storage, presenter).await
+        }
+        Some(Commands::Identity(i_args)) => {
+            identity::execute_identity(i_args, config, storage, presenter).await
         }
         Some(Commands::Version) => {
             let info = VersionInfo::current();

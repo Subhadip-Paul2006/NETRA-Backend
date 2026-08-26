@@ -55,4 +55,18 @@ clap = { version = "4.5.31", features = ["derive", "env"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 
+# Cryptography & Key Management (Phase 6)
+ed25519-dalek = { version = "2.1.1", default-features = false, features = ["std", "rand_core", "zeroize"] }
+zeroize = { version = "1.8.1", features = ["derive"] }
+rand_core = { version = "0.6.4", features = ["std"] }
+rand = { version = "0.8.5", features = ["std"] }
+hex = "0.4.3"
+base64 = "0.22.1"
+
+# Transport Security & WebSocket (Phase 6)
+rustls = { version = "0.23.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "0.26.8"
+tokio-tungstenite = { version = "0.26.2", default-features = false, features = ["rustls-tls-webpki-roots", "connect", "handshake"] }
+
+
 

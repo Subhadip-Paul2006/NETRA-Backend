@@ -4,6 +4,7 @@ pub mod middleware;
 pub mod openapi;
 pub mod routes;
 pub mod state;
+pub mod wss;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -25,6 +26,7 @@ pub use config::ApiConfig;
 pub use errors::{ApiError, ErrorDetail, ErrorEnvelope, MetaEnvelope, SuccessEnvelope};
 pub use openapi::ApiDoc;
 pub use state::AppState;
+pub use wss::{FrameType, WssClient, WssClientConfig, WssFrame};
 
 /// Asynchronous REST API Gateway service implementing `ComponentLifecycle`.
 pub struct ApiService {

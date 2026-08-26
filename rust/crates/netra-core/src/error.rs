@@ -114,6 +114,14 @@ impl NetraError {
         Self::new(ErrorKind::Auth, msg)
     }
 
+    pub fn crypto(msg: impl Into<String>) -> Self {
+        Self::new(ErrorKind::Auth, msg)
+    }
+
+    pub fn validation(msg: impl Into<String>) -> Self {
+        Self::new(ErrorKind::Policy, msg)
+    }
+
     pub fn storage(msg: impl Into<String>) -> Self {
         Self::new(ErrorKind::Storage, msg)
     }

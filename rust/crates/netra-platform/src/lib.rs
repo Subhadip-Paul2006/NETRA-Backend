@@ -31,6 +31,7 @@ pub mod factory;
 pub mod info;
 pub mod ipc;
 pub mod isolation;
+pub mod keystore;
 pub mod linux;
 pub mod macos;
 pub mod traits;
@@ -38,6 +39,10 @@ pub mod windows;
 
 pub use factory::create_platform_adapter;
 pub use info::detect_platform_info;
+#[cfg(feature = "insecure-dev-keystore")]
+pub use keystore::create_insecure_dev_keystore;
+pub use keystore::create_platform_keystore;
+
 pub use ipc::{
     create_ipc_client, create_ipc_server, default_endpoint_name, IpcClient, IpcServer, IpcStream,
     PeerCredentials,

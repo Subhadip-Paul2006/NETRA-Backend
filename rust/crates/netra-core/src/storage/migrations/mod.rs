@@ -11,11 +11,18 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "001_initial_schema",
-    sql: include_str!("sql/001_initial_schema.sql"),
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "001_initial_schema",
+        sql: include_str!("sql/001_initial_schema.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "002_identity_schema",
+        sql: include_str!("sql/002_identity_schema.sql"),
+    },
+];
 
 pub struct MigrationEngine;
 
@@ -145,7 +152,7 @@ mod tests {
     fn test_migration_idempotent_execution() {
         let mut conn = Connection::open_in_memory().unwrap();
         let applied_first = MigrationEngine::run_pending_migrations(&mut conn).unwrap();
-        assert_eq!(applied_first, 1);
+        assert_eq!(applied_first, MIGRATIONS.len());
 
         // Second run should be a no-op and apply 0 migrations
         let applied_second = MigrationEngine::run_pending_migrations(&mut conn).unwrap();

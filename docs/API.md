@@ -322,7 +322,7 @@ ProofSignature = Ed25519_Sign(private_key, ProofDigest)
 
 * **Test Vector**:
   - `CanonicalProofString`: `NETRA_PROOF_OF_POSSESSION_V1\n1\ndev_01918a2b3c4d7e8f9a0b1c2d3e4f5a6b\nkey_01918a2b3c4d\n01918a2b-3c4d-7e8f-9a0b-1c2d3e4f5a6b\n1776189500\n673a5a8e0f11910df666579c3fb4fa6a12b6833d735071df9bc4e64f77cfa9c5`
-  - `SHA256 Digest`: `9b8d2b29ec49b185b37f1e7d37a28178d8a7c2937080b06bcefa34cfb776dc12`
+  - `SHA256 Digest`: `607c586844d6749c4bb5d239414f3ece58e54bcd518b5a7d38d97572b568ea1c`
 
 * **Request**:
 ```json
