@@ -720,3 +720,34 @@ When `netra` is executed with the `--json` flag, it emits **strictly valid JSON*
 }
 ```
 
+---
+
+## 16. Control-Plane REST API Gateway Specification (Phase 5)
+
+The Control-Plane REST API Gateway (`netra-api`) exposes an asynchronous HTTP REST interface built on **Axum v0.8**. It provides local diagnostic probes, health monitoring, and SQLite database footprint inspection under a host-local trust assumption.
+
+### 16.1 Binding & Security Invariants
+1. **Loopback-Only Binding**: The HTTP listener strictly accepts IPv4 loopback (`127.0.0.1`) or IPv6 loopback (`::1`). Binding to `0.0.0.0`, LAN interfaces, or public IP addresses is explicitly rejected during initialization.
+2. **Capability Minimization**: Phase 5 REST API is unauthenticated and strictly read-only. Destructive operations (such as `netra storage recover`) are strictly prohibited and never exposed over HTTP.
+3. **Envelope Semantics**: All responses utilize the **NETRA Universal JSON Envelope, semantically aligned with RFC 9457**.
+4. **Single-Flight Concurrency Lock**: `GET /api/v1/storage/check?deep=true` enforces an in-memory atomic single-flight lock, rejecting concurrent deep checks with `409 Conflict` (`ERR_INTEGRITY_CHECK_IN_PROGRESS`).
+
+### 16.2 Route Taxonomy & Status Code Semantics
+
+| Method | Path | Cache Header | Success Status | Concurrency / Error Status | Description |
+| :--- | :--- | :--- | :---: | :---: | :--- |
+| `GET` | `/api/v1/health` | `no-store` | `200 OK` | `503 Service Unavailable` | Service liveness probe & component health |
+| `GET` | `/api/v1/version` | `public, max-age=3600` | `200 OK` | `500 Internal Error` | Version metadata (`schema_version: "1.0"`, build profile) |
+| `GET` | `/api/v1/status` | `no-store` | `200 OK` | `503 Service Unavailable` | Coordinator state machine, platform info & storage state |
+| `GET` | `/api/v1/diagnostics` | `no-store` | `200 OK` | `500 Internal Error` | Sanitized diagnostic bundle (secrets redacted) |
+| `GET` | `/api/v1/openapi.json` | `public, max-age=3600` | `200 OK` | `500 Internal Error` | Compile-time OpenAPI 3.1 schema document |
+| `GET` | `/api/v1/storage/status` | `no-store` | `200 OK` | `404 Not Found` | SQLite database file sizes, WAL size & record counts |
+| `GET` | `/api/v1/storage/check` | `no-store` | `200 OK` (`passed: true\|false`) | `409 Conflict` (deep check active) | Tier 2 quick_check or Tier 3 deep integrity probe |
+
+### 16.3 Storage Check Response Semantics (`GET /api/v1/storage/check`)
+- `200 OK` + `passed: true`: Integrity check executed successfully; database is clean and structurally sound.
+- `200 OK` + `passed: false`: Integrity check executed successfully; corruption detected and reported in `details`.
+- `409 Conflict`: A deep integrity check (`?deep=true`) is already in-flight.
+- `503 Service Unavailable`: Storage engine uninitialized or probe cannot be executed.
+
+
