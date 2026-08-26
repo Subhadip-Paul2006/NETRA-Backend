@@ -1,13 +1,11 @@
 use netra_core::config::StorageConfig;
-use netra_core::runtime::{ComponentHealth, RuntimeCoordinator};
+use netra_core::runtime::{ComponentHealth, ComponentLifecycle, RuntimeCoordinator};
 use netra_core::storage::{
-    CleanShutdownMarker, ConfigRepository, DatabaseEngine, FindingSeverity, FindingStatus,
-    FindingsRepository, ObservationQueueRepository, ObservationStatus, StorageError,
-    StorageQuotaManager, StorageState, CLEAN_SHUTDOWN_FILE, RUNTIME_ACTIVE_FILE,
+    DatabaseEngine, FindingSeverity, FindingsRepository, ObservationQueueRepository,
+    ObservationStatus, StorageState, CLEAN_SHUTDOWN_FILE, RUNTIME_ACTIVE_FILE,
 };
 use std::fs;
 use std::sync::Arc;
-use std::time::Duration;
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -22,12 +20,15 @@ async fn test_full_storage_lifecycle_with_coordinator() {
 
     let engine = Arc::new(DatabaseEngine::new(&config));
     let coordinator = RuntimeCoordinator::new();
-    coordinator.register_component(engine.clone()).unwrap();
+    coordinator
+        .register_component(engine.clone())
+        .await
+        .unwrap();
 
     // 1. Initialize coordinator (initializes DatabaseEngine)
     coordinator.initialize().await.unwrap();
     assert_eq!(engine.state(), StorageState::Ready);
-    assert_eq!(engine.health(), ComponentHealth::Healthy);
+    assert_eq!(engine.health().await, ComponentHealth::Healthy);
 
     // Verify .runtime_active exists during execution
     assert!(dir.path().join(RUNTIME_ACTIVE_FILE).exists());
@@ -129,7 +130,10 @@ async fn test_concurrent_read_write_stress() {
                 // Write: mark observation acknowledged
                 let obs_id = enqueued.id.clone();
                 eng.with_writer(move |conn| {
-                    ObservationQueueRepository::mark_acknowledged(conn, &[obs_id])
+                    ObservationQueueRepository::mark_acknowledged(
+                        conn,
+                        std::slice::from_ref(&obs_id),
+                    )
                 })
                 .await
                 .unwrap();

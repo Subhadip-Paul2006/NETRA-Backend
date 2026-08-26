@@ -1,6 +1,6 @@
 use crate::id::ObservationId;
 use crate::storage::error::{StorageError, StorageResult};
-use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use chrono::{Duration as ChronoDuration, Utc};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -24,14 +24,20 @@ impl ObservationStatus {
             Self::DeadLetter => "DEAD_LETTER",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for ObservationStatus {
+    type Err = StorageError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
-            "QUEUED" => Some(Self::Queued),
-            "IN_FLIGHT" => Some(Self::InFlight),
-            "ACKNOWLEDGED" => Some(Self::Acknowledged),
-            "DEAD_LETTER" => Some(Self::DeadLetter),
-            _ => None,
+            "QUEUED" => Ok(Self::Queued),
+            "IN_FLIGHT" => Ok(Self::InFlight),
+            "ACKNOWLEDGED" => Ok(Self::Acknowledged),
+            "DEAD_LETTER" => Ok(Self::DeadLetter),
+            other => Err(StorageError::NotFound(format!(
+                "Invalid ObservationStatus: {other}"
+            ))),
         }
     }
 }
@@ -99,7 +105,7 @@ impl ObservationQueueRepository {
                     observation_type: row.get(1)?,
                     payload_json: row.get(2)?,
                     sha256_hash: row.get(3)?,
-                    status: ObservationStatus::from_str(&status_str).unwrap_or(ObservationStatus::Queued),
+                    status: status_str.parse().unwrap_or(ObservationStatus::Queued),
                     retry_count: row.get(5)?,
                     source_finding_id: row.get(6)?,
                     created_at: row.get(7)?,
@@ -162,7 +168,10 @@ impl ObservationQueueRepository {
     }
 
     /// Fetches a batch of `QUEUED` observations in FIFO order.
-    pub fn fetch_queued_batch(conn: &Connection, limit: usize) -> StorageResult<Vec<ObservationEntry>> {
+    pub fn fetch_queued_batch(
+        conn: &Connection,
+        limit: usize,
+    ) -> StorageResult<Vec<ObservationEntry>> {
         let mut stmt = conn
             .prepare(
                 "SELECT id, observation_type, payload_json, sha256_hash, status, retry_count, source_finding_id, created_at, updated_at
@@ -181,7 +190,7 @@ impl ObservationQueueRepository {
                     observation_type: row.get(1)?,
                     payload_json: row.get(2)?,
                     sha256_hash: row.get(3)?,
-                    status: ObservationStatus::from_str(&status_str).unwrap_or(ObservationStatus::Queued),
+                    status: status_str.parse().unwrap_or(ObservationStatus::Queued),
                     retry_count: row.get(5)?,
                     source_finding_id: row.get(6)?,
                     created_at: row.get(7)?,
@@ -348,7 +357,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(obs1.id, obs2.id);
-        assert_eq!(ObservationQueueRepository::count_by_status(&conn, ObservationStatus::Queued).unwrap(), 1);
+        assert_eq!(
+            ObservationQueueRepository::count_by_status(&conn, ObservationStatus::Queued).unwrap(),
+            1
+        );
 
         // 3. Fetch batch
         let batch = ObservationQueueRepository::fetch_queued_batch(&conn, 10).unwrap();
@@ -356,14 +368,29 @@ mod tests {
         assert_eq!(batch[0].id, obs1.id);
 
         // 4. Mark in-flight
-        let in_flight_count = ObservationQueueRepository::mark_in_flight(&conn, &[obs1.id.clone()]).unwrap();
+        let in_flight_count =
+            ObservationQueueRepository::mark_in_flight(&conn, std::slice::from_ref(&obs1.id))
+                .unwrap();
         assert_eq!(in_flight_count, 1);
-        assert_eq!(ObservationQueueRepository::count_by_status(&conn, ObservationStatus::InFlight).unwrap(), 1);
-        assert_eq!(ObservationQueueRepository::count_by_status(&conn, ObservationStatus::Queued).unwrap(), 0);
+        assert_eq!(
+            ObservationQueueRepository::count_by_status(&conn, ObservationStatus::InFlight)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            ObservationQueueRepository::count_by_status(&conn, ObservationStatus::Queued).unwrap(),
+            0
+        );
 
         // 5. Mark acknowledged
-        let ack_count = ObservationQueueRepository::mark_acknowledged(&conn, &[obs1.id.clone()]).unwrap();
+        let ack_count =
+            ObservationQueueRepository::mark_acknowledged(&conn, std::slice::from_ref(&obs1.id))
+                .unwrap();
         assert_eq!(ack_count, 1);
-        assert_eq!(ObservationQueueRepository::count_by_status(&conn, ObservationStatus::Acknowledged).unwrap(), 1);
+        assert_eq!(
+            ObservationQueueRepository::count_by_status(&conn, ObservationStatus::Acknowledged)
+                .unwrap(),
+            1
+        );
     }
 }

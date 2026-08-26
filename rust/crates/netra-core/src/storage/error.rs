@@ -57,61 +57,62 @@ impl From<StorageError> for NetraError {
     fn from(err: StorageError) -> Self {
         match err {
             StorageError::Database(ref e) => {
-                NetraError::new(ErrorKind::StorageError, format!("Database error: {e}"))
-                    .with_code("ERR_STORAGE_DATABASE")
+                NetraError::new(ErrorKind::Storage, format!("Database error: {e}"))
+                    .with_context("ERR_STORAGE_DATABASE")
             }
             StorageError::Migration(ref msg) => {
-                NetraError::new(ErrorKind::StorageError, format!("Migration error: {msg}"))
-                    .with_code("ERR_STORAGE_MIGRATION")
+                NetraError::new(ErrorKind::Storage, format!("Migration error: {msg}"))
+                    .with_context("ERR_STORAGE_MIGRATION")
             }
             StorageError::Corruption(ref msg) => {
-                NetraError::new(ErrorKind::StorageError, format!("Corruption detected: {msg}"))
-                    .with_code("ERR_STORAGE_CORRUPT")
+                NetraError::new(ErrorKind::Storage, format!("Corruption detected: {msg}"))
+                    .with_context("ERR_STORAGE_CORRUPT")
             }
             StorageError::QuotaExceeded {
                 current_bytes,
                 max_bytes,
             } => NetraError::new(
-                ErrorKind::StorageError,
+                ErrorKind::Storage,
                 format!("Storage quota exceeded ({current_bytes}/{max_bytes} bytes)"),
             )
-            .with_code("ERR_STORAGE_QUOTA_EXCEEDED"),
+            .with_context("ERR_STORAGE_QUOTA_EXCEEDED"),
             StorageError::QuotaSaturated {
                 current_bytes,
                 max_bytes,
             } => NetraError::new(
-                ErrorKind::StorageError,
+                ErrorKind::Storage,
                 format!("Storage quota saturated ({current_bytes}/{max_bytes} bytes)"),
             )
-            .with_code("ERR_STORAGE_QUOTA_SATURATED"),
+            .with_context("ERR_STORAGE_QUOTA_SATURATED"),
             StorageError::SessionLocked { pid, ref path } => NetraError::new(
-                ErrorKind::StorageError,
+                ErrorKind::Storage,
                 format!("Storage directory '{path}' locked by PID {pid}"),
             )
-            .with_code("ERR_STORAGE_SESSION_LOCKED"),
+            .with_context("ERR_STORAGE_SESSION_LOCKED"),
             StorageError::NotFound(ref msg) => {
-                NetraError::new(ErrorKind::NotFound, format!("Entity not found: {msg}"))
-                    .with_code("ERR_STORAGE_NOT_FOUND")
+                NetraError::new(ErrorKind::Storage, format!("Entity not found: {msg}"))
+                    .with_context("ERR_STORAGE_NOT_FOUND")
             }
             StorageError::Serialization(ref msg) => {
-                NetraError::new(ErrorKind::SerializationError, format!("Serialization error: {msg}"))
-                    .with_code("ERR_STORAGE_SERIALIZATION")
+                NetraError::new(ErrorKind::Storage, format!("Serialization error: {msg}"))
+                    .with_context("ERR_STORAGE_SERIALIZATION")
             }
             StorageError::Io(ref e) => {
-                NetraError::new(ErrorKind::IoError, format!("Storage I/O error: {e}"))
-                    .with_code("ERR_STORAGE_IO")
+                NetraError::new(ErrorKind::Io, format!("Storage I/O error: {e}"))
+                    .with_context("ERR_STORAGE_IO")
             }
-            StorageError::TaskJoin(ref e) => {
-                NetraError::new(ErrorKind::InternalError, format!("Storage worker task failed: {e}"))
-                    .with_code("ERR_STORAGE_TASK_JOIN")
-            }
+            StorageError::TaskJoin(ref e) => NetraError::new(
+                ErrorKind::Internal,
+                format!("Storage worker task failed: {e}"),
+            )
+            .with_context("ERR_STORAGE_TASK_JOIN"),
             StorageError::Timeout(ref msg) => {
-                NetraError::new(ErrorKind::TimeoutError, format!("Storage timeout: {msg}"))
-                    .with_code("ERR_STORAGE_TIMEOUT")
+                NetraError::new(ErrorKind::Storage, format!("Storage timeout: {msg}"))
+                    .with_context("ERR_STORAGE_TIMEOUT")
             }
             StorageError::EngineClosed => {
-                NetraError::new(ErrorKind::StorageError, "Storage engine is closed")
-                    .with_code("ERR_STORAGE_ENGINE_CLOSED")
+                NetraError::new(ErrorKind::Storage, "Storage engine is closed")
+                    .with_context("ERR_STORAGE_ENGINE_CLOSED")
             }
         }
     }

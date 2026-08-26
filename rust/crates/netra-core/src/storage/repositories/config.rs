@@ -18,7 +18,9 @@ impl ConfigRepository {
     /// Retrieves a configuration entry by key.
     pub fn get(conn: &Connection, key: &str) -> StorageResult<Option<ConfigEntry>> {
         let mut stmt = conn
-            .prepare("SELECT key, value_json, value_type, updated_at FROM local_config WHERE key = ?1")
+            .prepare(
+                "SELECT key, value_json, value_type, updated_at FROM local_config WHERE key = ?1",
+            )
             .map_err(StorageError::Database)?;
 
         let result = stmt
@@ -43,7 +45,10 @@ impl ConfigRepository {
     }
 
     /// Deserializes a configuration value directly into a typed structure.
-    pub fn get_typed<T: DeserializeOwned>(conn: &Connection, key: &str) -> StorageResult<Option<T>> {
+    pub fn get_typed<T: DeserializeOwned>(
+        conn: &Connection,
+        key: &str,
+    ) -> StorageResult<Option<T>> {
         if let Some(entry) = Self::get(conn, key)? {
             let val: T = serde_json::from_str(&entry.value_json)
                 .map_err(|e| StorageError::Serialization(e.to_string()))?;
@@ -77,8 +82,8 @@ impl ConfigRepository {
 
     /// Serializes and sets a typed configuration entry.
     pub fn set_typed<T: Serialize>(conn: &Connection, key: &str, value: &T) -> StorageResult<()> {
-        let json = serde_json::to_string(value)
-            .map_err(|e| StorageError::Serialization(e.to_string()))?;
+        let json =
+            serde_json::to_string(value).map_err(|e| StorageError::Serialization(e.to_string()))?;
         Self::set(conn, key, &json, "json")
     }
 
@@ -93,7 +98,9 @@ impl ConfigRepository {
     /// Lists all configuration entries.
     pub fn list(conn: &Connection) -> StorageResult<Vec<ConfigEntry>> {
         let mut stmt = conn
-            .prepare("SELECT key, value_json, value_type, updated_at FROM local_config ORDER BY key ASC")
+            .prepare(
+                "SELECT key, value_json, value_type, updated_at FROM local_config ORDER BY key ASC",
+            )
             .map_err(StorageError::Database)?;
 
         let rows = stmt
@@ -152,7 +159,9 @@ mod tests {
         };
         ConfigRepository::set_typed(&conn, "app.settings", &settings).unwrap();
 
-        let loaded: MySettings = ConfigRepository::get_typed(&conn, "app.settings").unwrap().unwrap();
+        let loaded: MySettings = ConfigRepository::get_typed(&conn, "app.settings")
+            .unwrap()
+            .unwrap();
         assert_eq!(loaded, settings);
 
         // 4. List

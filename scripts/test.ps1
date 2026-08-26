@@ -5,8 +5,9 @@ $GnuSelfContained = "C:\Users\SUBHADIP PAUL\.rustup\toolchains\stable-x86_64-pc-
 $MsvcPath = "C:\Users\SUBHADIP PAUL\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"
 
 if (Test-Path "$GnuPath\cargo.exe") {
-    $cleanPath = ($env:PATH -split ';' | Where-Object { $_ -notlike '*MinGW*' }) -join ';'
-    $env:PATH = "C:\Git\cmd;C:\Users\SUBHADIP PAUL\.cargo\bin;$GnuSelfContained;$GnuPath;$cleanPath"
+    $cleanPath = ($env:PATH -split ';' | Where-Object { $_ -notlike '*C:\MinGW*' }) -join ';'
+    $env:PATH = "C:\Git\cmd;C:\Users\SUBHADIP PAUL\.cargo\bin;$GnuSelfContained;$GnuPath;D:\tools\w64devkit\bin;$cleanPath"
+    $env:CC = "D:\tools\w64devkit\bin\gcc.exe"
 } elseif (Test-Path "$MsvcPath\cargo.exe") {
     $env:PATH = "$MsvcPath;$env:PATH"
 }

@@ -23,13 +23,19 @@ impl FindingStatus {
             Self::Suppressed => "SUPPRESSED",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for FindingStatus {
+    type Err = StorageError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
-            "OPEN" => Some(Self::Open),
-            "RESOLVED" => Some(Self::Resolved),
-            "SUPPRESSED" => Some(Self::Suppressed),
-            _ => None,
+            "OPEN" => Ok(Self::Open),
+            "RESOLVED" => Ok(Self::Resolved),
+            "SUPPRESSED" => Ok(Self::Suppressed),
+            other => Err(StorageError::NotFound(format!(
+                "Invalid FindingStatus: {other}"
+            ))),
         }
     }
 }
@@ -59,15 +65,21 @@ impl FindingSeverity {
             Self::Informational => "INFORMATIONAL",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for FindingSeverity {
+    type Err = StorageError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
-            "CRITICAL" => Some(Self::Critical),
-            "HIGH" => Some(Self::High),
-            "MEDIUM" => Some(Self::Medium),
-            "LOW" => Some(Self::Low),
-            "INFORMATIONAL" => Some(Self::Informational),
-            _ => None,
+            "CRITICAL" => Ok(Self::Critical),
+            "HIGH" => Ok(Self::High),
+            "MEDIUM" => Ok(Self::Medium),
+            "LOW" => Ok(Self::Low),
+            "INFORMATIONAL" => Ok(Self::Informational),
+            other => Err(StorageError::NotFound(format!(
+                "Invalid FindingSeverity: {other}"
+            ))),
         }
     }
 }
@@ -153,8 +165,9 @@ impl FindingsRepository {
         )
         .map_err(StorageError::Database)?;
 
-        Self::get(conn, &fingerprint)?
-            .ok_or_else(|| StorageError::NotFound(format!("Finding {fingerprint} not found after upsert")))
+        Self::get(conn, &fingerprint)?.ok_or_else(|| {
+            StorageError::NotFound(format!("Finding {fingerprint} not found after upsert"))
+        })
     }
 
     /// Retrieves a finding by its deterministic fingerprint.
@@ -174,8 +187,8 @@ impl FindingsRepository {
                 Ok(FindingEntry {
                     fingerprint: row.get(0)?,
                     rule_id: row.get(1)?,
-                    severity: FindingSeverity::from_str(&sev_str).unwrap_or(FindingSeverity::Medium),
-                    status: FindingStatus::from_str(&status_str).unwrap_or(FindingStatus::Open),
+                    severity: sev_str.parse().unwrap_or(FindingSeverity::Medium),
+                    status: status_str.parse().unwrap_or(FindingStatus::Open),
                     title: row.get(4)?,
                     evidence_summary_json: row.get(5)?,
                     occurrence_count: row.get(6)?,
@@ -196,7 +209,10 @@ impl FindingsRepository {
     }
 
     /// Lists findings filtered by status.
-    pub fn list_by_status(conn: &Connection, status: FindingStatus) -> StorageResult<Vec<FindingEntry>> {
+    pub fn list_by_status(
+        conn: &Connection,
+        status: FindingStatus,
+    ) -> StorageResult<Vec<FindingEntry>> {
         let mut stmt = conn
             .prepare(
                 "SELECT fingerprint, rule_id, severity, status, title, evidence_summary_json, occurrence_count, first_seen, last_seen
@@ -213,8 +229,8 @@ impl FindingsRepository {
                 Ok(FindingEntry {
                     fingerprint: row.get(0)?,
                     rule_id: row.get(1)?,
-                    severity: FindingSeverity::from_str(&sev_str).unwrap_or(FindingSeverity::Medium),
-                    status: FindingStatus::from_str(&status_str).unwrap_or(FindingStatus::Open),
+                    severity: sev_str.parse().unwrap_or(FindingSeverity::Medium),
+                    status: status_str.parse().unwrap_or(FindingStatus::Open),
                     title: row.get(4)?,
                     evidence_summary_json: row.get(5)?,
                     occurrence_count: row.get(6)?,
@@ -317,7 +333,9 @@ mod tests {
 
         // 3. Resolve finding
         assert!(FindingsRepository::resolve(&conn, &f1.fingerprint).unwrap());
-        let f_resolved = FindingsRepository::get(&conn, &f1.fingerprint).unwrap().unwrap();
+        let f_resolved = FindingsRepository::get(&conn, &f1.fingerprint)
+            .unwrap()
+            .unwrap();
         assert_eq!(f_resolved.status, FindingStatus::Resolved);
 
         // 4. Re-observing resolved finding automatically reopens it

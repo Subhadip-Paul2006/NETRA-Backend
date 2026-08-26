@@ -7,7 +7,7 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 /// Quarantine forensic report recorded in `quarantine_meta.json`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -167,10 +167,7 @@ impl QuarantineManager {
         for suffix in file_stems {
             let file_name = format!(
                 "{}{}",
-                db_path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy(),
+                db_path.file_name().unwrap_or_default().to_string_lossy(),
                 suffix
             );
             let src_file = parent_dir.join(&file_name);
@@ -184,10 +181,9 @@ impl QuarantineManager {
                     let _ = fs::remove_file(&src_file);
                 }
 
-                let size = fs::metadata(&dest_file)
-                    .map(|m| m.len())
-                    .unwrap_or(0);
-                let hash = Self::hash_file(&dest_file).unwrap_or_else(|_| "hash_failed".to_string());
+                let size = fs::metadata(&dest_file).map(|m| m.len()).unwrap_or(0);
+                let hash =
+                    Self::hash_file(&dest_file).unwrap_or_else(|_| "hash_failed".to_string());
 
                 quarantined_files.push(QuarantinedFileInfo {
                     file_name,
@@ -232,14 +228,9 @@ mod tests {
 
     #[test]
     fn test_tier1_and_tier2_integrity_checks_on_healthy_db() {
-        let conn = Connection::open_in_memory().unwrap();
-        crate::storage::migrations::MigrationEngine::run_pending_migrations(
-            &mut Connection::open_in_memory().unwrap(),
-        )
-        .unwrap();
-
         let mut fresh_conn = Connection::open_in_memory().unwrap();
-        crate::storage::migrations::MigrationEngine::run_pending_migrations(&mut fresh_conn).unwrap();
+        crate::storage::migrations::MigrationEngine::run_pending_migrations(&mut fresh_conn)
+            .unwrap();
 
         let t1 = IntegrityVerification::probe_tier1_fast(&fresh_conn);
         assert!(t1.is_ok());
@@ -264,7 +255,8 @@ mod tests {
         fs::write(&db_path, b"corrupted header bytes").unwrap();
         fs::write(&wal_path, b"corrupted wal bytes").unwrap();
 
-        let q_dir = QuarantineManager::execute_quarantine(&db_path, "Simulated header corruption").unwrap();
+        let q_dir =
+            QuarantineManager::execute_quarantine(&db_path, "Simulated header corruption").unwrap();
 
         assert!(q_dir.exists());
         assert!(!db_path.exists());

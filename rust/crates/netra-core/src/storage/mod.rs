@@ -22,8 +22,8 @@ pub use marker::{
 };
 pub use migrations::{Migration, MigrationEngine, MIGRATIONS};
 pub use pruner::{
-    PruneReport, QuotaStatus, StorageQuotaManager, DEFAULT_MAX_STORAGE_BYTES,
-    PRUNE_CRITICAL_RATIO, PRUNE_HIGH_WATER_RATIO, PRUNE_SATURATION_RATIO,
+    PruneReport, QuotaStatus, StorageQuotaManager, DEFAULT_MAX_STORAGE_BYTES, PRUNE_CRITICAL_RATIO,
+    PRUNE_HIGH_WATER_RATIO, PRUNE_SATURATION_RATIO,
 };
 pub use recovery::{IntegrityVerification, QuarantineManager, QuarantineMetadata};
 pub use repositories::{

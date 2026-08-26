@@ -3,7 +3,7 @@ use chrono::{Duration as ChronoDuration, Utc};
 use rusqlite::{params, Connection};
 use std::fs;
 use std::path::Path;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 pub const DEFAULT_MAX_STORAGE_BYTES: u64 = 524_288_000; // 500 MB
 pub const PRUNE_HIGH_WATER_RATIO: f64 = 0.85; // 85% triggers proactive pruning
@@ -182,7 +182,9 @@ impl StorageQuotaManager {
 mod tests {
     use super::*;
     use crate::storage::migrations::MigrationEngine;
-    use crate::storage::repositories::{FindingsRepository, FindingSeverity, ObservationQueueRepository, FindingStatus};
+    use crate::storage::repositories::{
+        FindingSeverity, FindingStatus, FindingsRepository, ObservationQueueRepository,
+    };
     use tempfile::tempdir;
 
     #[test]
@@ -193,17 +195,21 @@ mod tests {
         MigrationEngine::run_pending_migrations(&mut conn).unwrap();
 
         // 1. Insert QUEUED observation (MUST NEVER BE DELETED)
-        let queued_obs = ObservationQueueRepository::enqueue(&conn, "SCAN", "{\"queued\": true}", None).unwrap();
+        let queued_obs =
+            ObservationQueueRepository::enqueue(&conn, "SCAN", "{\"queued\": true}", None).unwrap();
 
         // 2. Insert ACKNOWLEDGED observation with old timestamp
-        let ack_obs = ObservationQueueRepository::enqueue(&conn, "SCAN", "{\"ack\": true}", None).unwrap();
-        ObservationQueueRepository::mark_acknowledged(&conn, &[ack_obs.id.clone()]).unwrap();
+        let ack_obs =
+            ObservationQueueRepository::enqueue(&conn, "SCAN", "{\"ack\": true}", None).unwrap();
+        ObservationQueueRepository::mark_acknowledged(&conn, std::slice::from_ref(&ack_obs.id))
+            .unwrap();
         // Set timestamp back 10 days
         let old_time = (Utc::now() - ChronoDuration::days(10)).to_rfc3339();
         conn.execute(
             "UPDATE observation_queue SET updated_at = ?1 WHERE id = ?2",
             params![&old_time, &ack_obs.id],
-        ).unwrap();
+        )
+        .unwrap();
 
         // 3. Insert OPEN finding (MUST NEVER BE DELETED)
         let open_finding = FindingsRepository::upsert(
@@ -214,7 +220,8 @@ mod tests {
             "disc1",
             "Open finding",
             "{}",
-        ).unwrap();
+        )
+        .unwrap();
 
         // 4. Insert RESOLVED finding with old timestamp
         let resolved_finding = FindingsRepository::upsert(
@@ -225,16 +232,19 @@ mod tests {
             "disc2",
             "Resolved finding",
             "{}",
-        ).unwrap();
+        )
+        .unwrap();
         FindingsRepository::resolve(&conn, &resolved_finding.fingerprint).unwrap();
         let old_f_time = (Utc::now() - ChronoDuration::days(100)).to_rfc3339();
         conn.execute(
             "UPDATE local_findings SET last_seen = ?1 WHERE fingerprint = ?2",
             params![&old_f_time, &resolved_finding.fingerprint],
-        ).unwrap();
+        )
+        .unwrap();
 
         // Run Prune
-        let report = StorageQuotaManager::execute_prune(&conn, &db_path, DEFAULT_MAX_STORAGE_BYTES).unwrap();
+        let report =
+            StorageQuotaManager::execute_prune(&conn, &db_path, DEFAULT_MAX_STORAGE_BYTES).unwrap();
         assert_eq!(report.pruned_ack_observations, 1);
         assert_eq!(report.pruned_resolved_findings, 1);
 

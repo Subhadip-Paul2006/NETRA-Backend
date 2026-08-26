@@ -177,6 +177,9 @@ mod tests {
         // Re-running migration engine should detect tamper and error
         let result = MigrationEngine::run_pending_migrations(&mut conn);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Checksum mismatch"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Checksum mismatch"));
     }
 }

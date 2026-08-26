@@ -4,7 +4,7 @@ use crate::runtime::{ComponentHealth, ComponentLifecycle};
 use crate::storage::error::{StorageError, StorageResult};
 use crate::storage::marker::CleanShutdownMarker;
 use crate::storage::migrations::MigrationEngine;
-use crate::storage::pruner::{StorageQuotaManager, DEFAULT_MAX_STORAGE_BYTES};
+use crate::storage::pruner::DEFAULT_MAX_STORAGE_BYTES;
 use crate::storage::recovery::{IntegrityVerification, QuarantineManager};
 use async_trait::async_trait;
 use rusqlite::Connection;
@@ -27,8 +27,8 @@ pub enum StorageState {
 }
 
 struct EngineInner {
-    writer: Option<Mutex<Connection>>,
-    reader: Option<Mutex<Connection>>,
+    writer: Mutex<Option<Connection>>,
+    reader: Mutex<Option<Connection>>,
     db_path: PathBuf,
     max_storage_bytes: u64,
     state: RwLock<StorageState>,
@@ -51,8 +51,8 @@ impl DatabaseEngine {
 
         Self {
             inner: Arc::new(EngineInner {
-                writer: None,
-                reader: None,
+                writer: Mutex::new(None),
+                reader: Mutex::new(None),
                 db_path,
                 max_storage_bytes,
                 state: RwLock::new(StorageState::Uninitialized),
@@ -60,20 +60,34 @@ impl DatabaseEngine {
         }
     }
 
-    /// Creates an in-memory database engine for fast isolated testing.
+    /// Creates an in-memory database engine for fast isolated testing using a shared in-memory URI.
     pub fn in_memory() -> StorageResult<Self> {
-        let mut writer = Connection::open_in_memory().map_err(StorageError::Database)?;
+        let uri = format!(
+            "file:mem_{}?mode=memory&cache=shared",
+            uuid::Uuid::now_v7().simple()
+        );
+        let mut writer = Connection::open_with_flags(
+            &uri,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+                | rusqlite::OpenFlags::SQLITE_OPEN_CREATE
+                | rusqlite::OpenFlags::SQLITE_OPEN_URI,
+        )
+        .map_err(StorageError::Database)?;
         Self::apply_pragmas(&writer)?;
         MigrationEngine::run_pending_migrations(&mut writer)?;
 
-        let reader = Connection::open_in_memory().map_err(StorageError::Database)?;
+        let reader = Connection::open_with_flags(
+            &uri,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_URI,
+        )
+        .map_err(StorageError::Database)?;
         Self::apply_pragmas(&reader)?;
 
         Ok(Self {
             inner: Arc::new(EngineInner {
-                writer: Some(Mutex::new(writer)),
-                reader: Some(Mutex::new(reader)),
-                db_path: PathBuf::from(":memory:"),
+                writer: Mutex::new(Some(writer)),
+                reader: Mutex::new(Some(reader)),
+                db_path: PathBuf::from(&uri),
                 max_storage_bytes: DEFAULT_MAX_STORAGE_BYTES,
                 state: RwLock::new(StorageState::Ready),
             }),
@@ -121,14 +135,12 @@ impl DatabaseEngine {
 
         let inner = self.inner.clone();
         tokio::task::spawn_blocking(move || {
-            let writer_mutex = inner
+            let mut writer_guard = inner
                 .writer
-                .as_ref()
-                .ok_or(StorageError::EngineClosed)?;
-            let mut conn = writer_mutex
                 .lock()
                 .map_err(|_| StorageError::EngineClosed)?;
-            f(&mut conn)
+            let conn = writer_guard.as_mut().ok_or(StorageError::EngineClosed)?;
+            f(conn)
         })
         .await
         .map_err(StorageError::TaskJoin)?
@@ -148,17 +160,19 @@ impl DatabaseEngine {
 
         let inner = self.inner.clone();
         tokio::task::spawn_blocking(move || {
-            let reader_mutex = inner
+            let reader_guard = inner
                 .reader
-                .as_ref()
-                .ok_or(StorageError::EngineClosed)?;
-            let conn = reader_mutex
                 .lock()
                 .map_err(|_| StorageError::EngineClosed)?;
-            f(&conn)
+            let conn = reader_guard.as_ref().ok_or(StorageError::EngineClosed)?;
+            f(conn)
         })
         .await
         .map_err(StorageError::TaskJoin)?
+    }
+    pub fn is_memory(&self) -> bool {
+        let s = self.inner.db_path.to_string_lossy();
+        s == ":memory:" || s.starts_with("file:mem_")
     }
 }
 
@@ -176,13 +190,13 @@ impl ComponentLifecycle for DatabaseEngine {
         let db_path = self.inner.db_path.clone();
 
         // Memory database bypasses filesystem markers
-        if db_path.to_string_lossy() == ":memory:" {
+        if self.is_memory() {
             return Ok(());
         }
 
         let parent_dir = db_path.parent().unwrap_or_else(|| Path::new("."));
         fs::create_dir_all(parent_dir).map_err(|e| {
-            NetraError::new(ErrorKind::IoError, format!("Failed to create DB directory: {e}"))
+            NetraError::new(ErrorKind::Io, format!("Failed to create DB directory: {e}"))
         })?;
 
         #[cfg(unix)]
@@ -202,21 +216,56 @@ impl ComponentLifecycle for DatabaseEngine {
         );
 
         // 2. Open writer handle
-        let mut writer = Connection::open(&db_path).map_err(|e| {
-            NetraError::new(ErrorKind::StorageError, format!("Failed to open DB: {e}"))
-        })?;
-        Self::apply_pragmas(&writer)?;
+        let mut writer = match Connection::open(&db_path) {
+            Ok(conn) => conn,
+            Err(e) => {
+                let q_dir = QuarantineManager::execute_quarantine(
+                    &db_path,
+                    &format!("Failed to open DB: {e}"),
+                )?;
+                warn!(
+                    quarantine_dir = %q_dir.display(),
+                    "Storage engine entering DEGRADED quarantined state"
+                );
+                *self.inner.state.write().unwrap() = StorageState::Degraded(format!(
+                    "Corrupted and quarantined to {}",
+                    q_dir.display()
+                ));
+                return Ok(());
+            }
+        };
+
+        if let Err(e) = Self::apply_pragmas(&writer) {
+            drop(writer);
+            let q_dir = QuarantineManager::execute_quarantine(
+                &db_path,
+                &format!("Corrupted database pragmas failed: {e}"),
+            )?;
+            warn!(
+                quarantine_dir = %q_dir.display(),
+                "Storage engine entering DEGRADED quarantined state"
+            );
+            *self.inner.state.write().unwrap() =
+                StorageState::Degraded(format!("Corrupted and quarantined to {}", q_dir.display()));
+            return Ok(());
+        }
 
         // 3. Tiered integrity check
         let is_corrupted = if session_acq.is_unclean_restart {
             info!("Unclean restart detected; executing Tier 2 PRAGMA quick_check");
             match IntegrityVerification::probe_tier2_quick_check(&writer) {
                 Ok(dur) => {
-                    debug!(duration_ms = dur.as_millis(), "Tier 2 quick_check passed cleanly");
+                    debug!(
+                        duration_ms = dur.as_millis(),
+                        "Tier 2 quick_check passed cleanly"
+                    );
                     false
                 }
                 Err(StorageError::Corruption(reason)) => {
-                    error!(reason = reason.as_str(), "Database corruption detected during Tier 2 verification");
+                    error!(
+                        reason = reason.as_str(),
+                        "Database corruption detected during Tier 2 verification"
+                    );
                     true
                 }
                 Err(e) => {
@@ -227,7 +276,10 @@ impl ComponentLifecycle for DatabaseEngine {
         } else {
             match IntegrityVerification::probe_tier1_fast(&writer) {
                 Ok(dur) => {
-                    debug!(duration_us = dur.as_micros(), "Tier 1 fast probe passed cleanly");
+                    debug!(
+                        duration_us = dur.as_micros(),
+                        "Tier 1 fast probe passed cleanly"
+                    );
                     false
                 }
                 Err(_) => {
@@ -241,7 +293,8 @@ impl ComponentLifecycle for DatabaseEngine {
             // Drop connection to release file lock
             drop(writer);
 
-            let q_dir = QuarantineManager::execute_quarantine(&db_path, "Startup integrity check failed")?;
+            let q_dir =
+                QuarantineManager::execute_quarantine(&db_path, "Startup integrity check failed")?;
             warn!(
                 quarantine_dir = %q_dir.display(),
                 "Storage engine entering DEGRADED quarantined state"
@@ -258,16 +311,15 @@ impl ComponentLifecycle for DatabaseEngine {
 
         // 5. Open reader handle
         let reader = Connection::open(&db_path).map_err(|e| {
-            NetraError::new(ErrorKind::StorageError, format!("Failed to open reader handle: {e}"))
+            NetraError::new(
+                ErrorKind::Storage,
+                format!("Failed to open reader handle: {e}"),
+            )
         })?;
         Self::apply_pragmas(&reader)?;
 
-        // Unsafe cast to initialize Mutex in immutable Arc (one-time initialization)
-        let inner_ptr = Arc::as_ptr(&self.inner) as *mut EngineInner;
-        unsafe {
-            (*inner_ptr).writer = Some(Mutex::new(writer));
-            (*inner_ptr).reader = Some(Mutex::new(reader));
-        }
+        *self.inner.writer.lock().unwrap() = Some(writer);
+        *self.inner.reader.lock().unwrap() = Some(reader);
 
         *self.inner.state.write().unwrap() = StorageState::Ready;
         info!("SQLite storage engine initialized and READY");
@@ -283,11 +335,14 @@ impl ComponentLifecycle for DatabaseEngine {
                 Ok(())
             }
             StorageState::Degraded(ref reason) => {
-                warn!(reason = reason.as_str(), "Storage engine started in DEGRADED mode");
+                warn!(
+                    reason = reason.as_str(),
+                    "Storage engine started in DEGRADED mode"
+                );
                 Ok(())
             }
             _ => Err(NetraError::new(
-                ErrorKind::InternalError,
+                ErrorKind::Internal,
                 format!("Cannot start storage engine in state {:?}", state),
             )),
         }
@@ -298,7 +353,7 @@ impl ComponentLifecycle for DatabaseEngine {
         *self.inner.state.write().unwrap() = StorageState::Stopping;
 
         let db_path = self.inner.db_path.clone();
-        if db_path.to_string_lossy() == ":memory:" {
+        if self.is_memory() {
             *self.inner.state.write().unwrap() = StorageState::Stopped;
             return Ok(());
         }
@@ -306,17 +361,23 @@ impl ComponentLifecycle for DatabaseEngine {
         // Bounded WAL checkpoint on Tokio blocking pool with timeout
         let inner = self.inner.clone();
         let checkpoint_fut = tokio::task::spawn_blocking(move || {
-            if let Some(ref writer_mutex) = inner.writer {
-                if let Ok(conn) = writer_mutex.lock() {
-                    let _ = conn.execute_batch("PRAGMA wal_checkpoint(PASSIVE);");
-                }
+            let writer_guard = inner.writer.lock().unwrap();
+            if let Some(ref conn) = *writer_guard {
+                let _ = conn.execute_batch("PRAGMA wal_checkpoint(PASSIVE);");
             }
         });
 
         let timeout_duration = Duration::from_millis(SHUTDOWN_CHECKPOINT_TIMEOUT_MS);
-        if tokio::time::timeout(timeout_duration, checkpoint_fut).await.is_err() {
+        if tokio::time::timeout(timeout_duration, checkpoint_fut)
+            .await
+            .is_err()
+        {
             warn!("Storage shutdown checkpoint timed out (1000ms); aborting checkpoint");
         }
+
+        // Close connection handles
+        *self.inner.writer.lock().unwrap() = None;
+        *self.inner.reader.lock().unwrap() = None;
 
         // Release session marker
         let parent_dir = db_path.parent().unwrap_or_else(|| Path::new("."));
@@ -328,12 +389,12 @@ impl ComponentLifecycle for DatabaseEngine {
         Ok(())
     }
 
-    fn health(&self) -> ComponentHealth {
+    async fn health(&self) -> ComponentHealth {
         match self.state() {
             StorageState::Ready => ComponentHealth::Healthy,
-            StorageState::Degraded(ref reason) => ComponentHealth::Degraded(reason.clone()),
-            StorageState::Failed(ref reason) => ComponentHealth::Failed(reason.clone()),
-            _ => ComponentHealth::Degraded("Storage engine is not ready".to_string()),
+            StorageState::Degraded(_) => ComponentHealth::Degraded,
+            StorageState::Failed(_) => ComponentHealth::Failed,
+            _ => ComponentHealth::Degraded,
         }
     }
 }
@@ -346,7 +407,7 @@ mod tests {
     async fn test_in_memory_database_engine() {
         let engine = DatabaseEngine::in_memory().unwrap();
         assert_eq!(engine.state(), StorageState::Ready);
-        assert_eq!(engine.health(), ComponentHealth::Healthy);
+        assert_eq!(engine.health().await, ComponentHealth::Healthy);
 
         // Test with_writer
         let rows_inserted = engine

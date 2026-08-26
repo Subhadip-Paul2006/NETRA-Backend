@@ -1,9 +1,9 @@
 use crate::storage::error::{StorageError, StorageResult};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
@@ -258,7 +258,10 @@ mod tests {
         if CleanShutdownMarker::is_pid_alive(my_pid) {
             let result = CleanShutdownMarker::acquire_session(path, other_pid);
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("locked by active PID"));
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("locked by active PID"));
         }
     }
 }
