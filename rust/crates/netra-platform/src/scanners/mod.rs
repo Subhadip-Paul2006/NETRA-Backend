@@ -3,6 +3,7 @@
 //! Native operating system collectors for security posture telemetry.
 
 pub mod firewall;
+pub mod interfaces;
 #[allow(dead_code)]
 pub mod linux;
 #[allow(dead_code)]
@@ -16,6 +17,7 @@ pub mod users;
 pub mod windows;
 
 pub use firewall::PlatformFirewallScanner;
+pub use interfaces::PlatformInterfaceScanner;
 pub use os_config::PlatformOsConfigScanner;
 pub use process::PlatformProcessScanner;
 pub use services::PlatformServiceScanner;
@@ -30,7 +32,12 @@ pub fn create_socket_scanner() -> Arc<dyn PostureScanner> {
     Arc::new(PlatformSocketScanner::new())
 }
 
-/// Creates all 6 native OS Posture Scanners for the host.
+/// Creates the native OS Network Interface Posture Scanner.
+pub fn create_interface_scanner() -> Arc<dyn PostureScanner> {
+    Arc::new(PlatformInterfaceScanner::new())
+}
+
+/// Creates all native OS Posture Scanners for the host.
 pub fn create_all_platform_scanners(hash_binaries: bool) -> Vec<Arc<dyn PostureScanner>> {
     vec![
         Arc::new(PlatformSocketScanner::new()),
@@ -39,5 +46,6 @@ pub fn create_all_platform_scanners(hash_binaries: bool) -> Vec<Arc<dyn PostureS
         Arc::new(PlatformUserScanner::new()),
         Arc::new(PlatformServiceScanner::new()),
         Arc::new(PlatformOsConfigScanner::new()),
+        Arc::new(PlatformInterfaceScanner::new()),
     ]
 }

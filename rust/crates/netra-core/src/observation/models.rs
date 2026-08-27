@@ -17,6 +17,10 @@ pub enum ObservationType {
     Users,
     Services,
     OsConfig,
+    Interfaces,
+    Routes,
+    Dns,
+    Neighbors,
 }
 
 /// Execution privilege status and capability envelope for an observation collector.

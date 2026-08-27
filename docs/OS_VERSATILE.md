@@ -96,6 +96,7 @@ pub trait OSAdapter: Send + Sync {
 | Capability | Windows (`windows-sys`) | Linux (`nix` / Netlink) | macOS (`sysctl` / Keychain) |
 | :--- | :--- | :--- | :--- |
 | **`SCAN_NETWORK`** | ★ Full Native Support | ★ Full Native Support | ★ Full Native Support |
+| **`SCAN_INTERFACES`** | ★ `GetAdaptersAddresses` (`NATIVE TESTED`) | ★ `/sys/class/net` (`FIXTURE TESTED`) | ⚠ Stub (`NOT NATIVE TESTED`) |
 | **`SCAN_PROCESSES`** | ★ Full Native Support | ★ Full Native Support | ★ Full Native Support |
 | **`SCAN_FIREWALL`** | ★ `INetFwPolicy2` COM | ★ `nftables` / `iptables` | ★ `pfctl` Inspection |
 | **`OBSERVE_TOPOLOGY`** | ★ `GetIpNetTable2` | ★ `ip neigh` / Netlink | ★ `sysctl` Routing Socket |

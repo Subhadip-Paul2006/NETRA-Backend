@@ -32,6 +32,21 @@ pub enum TargetDescriptor {
     Service { service_name: String },
     /// Operating system security configuration check.
     OsConfiguration { check_name: String },
+    /// Network interface target.
+    NetworkInterface { interface_name: String },
+    /// Network routing entry target.
+    Route {
+        destination: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        gateway: Option<String>,
+    },
+    /// Configured DNS nameserver target.
+    DnsServer { server_address: String },
+    /// Passive Layer-2 / Layer-3 network neighbor target.
+    NetworkNeighbor {
+        ip_address: String,
+        interface_name: String,
+    },
 }
 
 impl TargetDescriptor {
@@ -50,6 +65,32 @@ impl TargetDescriptor {
             Self::Service { service_name } => format!("service:{}", service_name.to_lowercase()),
             Self::OsConfiguration { check_name } => {
                 format!("os_config:{}", check_name.to_lowercase())
+            }
+            Self::NetworkInterface { interface_name } => {
+                format!("interface:{}", interface_name.to_lowercase())
+            }
+            Self::Route {
+                destination,
+                gateway,
+            } => {
+                format!(
+                    "route:{}:{}",
+                    destination.to_lowercase(),
+                    gateway.as_deref().unwrap_or("direct").to_lowercase()
+                )
+            }
+            Self::DnsServer { server_address } => {
+                format!("dns_server:{}", server_address.to_lowercase())
+            }
+            Self::NetworkNeighbor {
+                ip_address,
+                interface_name,
+            } => {
+                format!(
+                    "neighbor:{}:{}",
+                    interface_name.to_lowercase(),
+                    ip_address.to_lowercase()
+                )
             }
         }
     }
@@ -84,6 +125,28 @@ mod tests {
             uid_or_sid: None,
         };
         assert_eq!(user.target_key(), "user:administrator");
+
+        let iface = TargetDescriptor::NetworkInterface {
+            interface_name: "Ethernet0".to_string(),
+        };
+        assert_eq!(iface.target_key(), "interface:ethernet0");
+
+        let route = TargetDescriptor::Route {
+            destination: "0.0.0.0/0".to_string(),
+            gateway: Some("192.168.1.1".to_string()),
+        };
+        assert_eq!(route.target_key(), "route:0.0.0.0/0:192.168.1.1");
+
+        let dns = TargetDescriptor::DnsServer {
+            server_address: "8.8.8.8".to_string(),
+        };
+        assert_eq!(dns.target_key(), "dns_server:8.8.8.8");
+
+        let neighbor = TargetDescriptor::NetworkNeighbor {
+            ip_address: "192.168.1.50".to_string(),
+            interface_name: "eth0".to_string(),
+        };
+        assert_eq!(neighbor.target_key(), "neighbor:eth0:192.168.1.50");
     }
 
     #[test]
@@ -99,5 +162,13 @@ mod tests {
 
         let deserialized: TargetDescriptor = serde_json::from_str(&json).unwrap();
         assert_eq!(desc, deserialized);
+
+        let iface_desc = TargetDescriptor::NetworkInterface {
+            interface_name: "eth0".to_string(),
+        };
+        let iface_json = serde_json::to_string(&iface_desc).unwrap();
+        assert!(iface_json.contains("\"type\":\"network_interface\""));
+        let deserialized_iface: TargetDescriptor = serde_json::from_str(&iface_json).unwrap();
+        assert_eq!(iface_desc, deserialized_iface);
     }
 }

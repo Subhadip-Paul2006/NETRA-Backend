@@ -36,6 +36,7 @@ pub mod ipc;
 pub mod keystore;
 pub mod lifecycle;
 pub mod logging;
+pub mod network;
 pub mod observation;
 pub mod rules;
 pub mod runtime;
@@ -53,14 +54,21 @@ pub use ipc::{
     MAX_IPC_FRAME_SIZE,
 };
 pub use logging::init_logging;
+pub use network::{
+    hash_mac_bytes, hash_mac_str, is_valid_mac_hash, IpClassification, NetworkTopologySnapshot,
+    TopologyBuilder, TopologyDnsNode, TopologyGatewayNode, TopologyInterfaceNode,
+    TopologyNeighborNode, TopologySubnetRecord,
+};
 pub use observation::{
-    ConfidenceScore, FirewallObservationPayload, FirewallProfileRecord, Observation,
-    ObservationPayload, ObservationType, OsConfigObservationPayload, OsConfigRecord,
-    PostureScanner, PrivilegeStatus, ProcessObservationPayload, ProcessRecord, ScanCycleResult,
-    ScannerSupervisor, SensitivityLevel, ServiceObservationPayload, ServiceRecord,
-    ServiceStartType, ServiceState, SocketObservationPayload, SocketProtocol, SocketRecord,
-    TargetDescriptor, UserObservationPayload, UserRecord, OBSERVATION_SCHEMA_VERSION,
-    SCANNER_TIMEOUT_MS,
+    ConfidenceScore, DnsObservationPayload, DnsServerRecord, FirewallObservationPayload,
+    FirewallProfileRecord, InterfaceObservationPayload, InterfaceRecord, InterfaceStatus,
+    InterfaceType, IpNetworkRecord, NeighborObservationPayload, NeighborRecord, NeighborState,
+    Observation, ObservationPayload, ObservationType, OsConfigObservationPayload, OsConfigRecord,
+    PostureScanner, PrivilegeStatus, ProcessObservationPayload, ProcessRecord,
+    RouteObservationPayload, RouteRecord, RouteType, ScanCycleResult, ScannerSupervisor,
+    SensitivityLevel, ServiceObservationPayload, ServiceRecord, ServiceStartType, ServiceState,
+    SocketObservationPayload, SocketProtocol, SocketRecord, TargetDescriptor,
+    UserObservationPayload, UserRecord, OBSERVATION_SCHEMA_VERSION, SCANNER_TIMEOUT_MS,
 };
 pub use rules::{
     FindingRule, Fw001ProfileDisabledRule, Net001PlaintextPortRule, Net002UnrestrictedDbRule,

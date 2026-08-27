@@ -14,10 +14,13 @@ pub use models::{
     OBSERVATION_SCHEMA_VERSION,
 };
 pub use payloads::{
-    FirewallObservationPayload, FirewallProfileRecord, ObservationPayload,
+    DnsObservationPayload, DnsServerRecord, FirewallObservationPayload, FirewallProfileRecord,
+    InterfaceObservationPayload, InterfaceRecord, InterfaceStatus, InterfaceType, IpNetworkRecord,
+    NeighborObservationPayload, NeighborRecord, NeighborState, ObservationPayload,
     OsConfigObservationPayload, OsConfigRecord, ProcessObservationPayload, ProcessRecord,
-    ServiceObservationPayload, ServiceRecord, ServiceStartType, ServiceState,
-    SocketObservationPayload, SocketProtocol, SocketRecord, UserObservationPayload, UserRecord,
+    RouteObservationPayload, RouteRecord, RouteType, ServiceObservationPayload, ServiceRecord,
+    ServiceStartType, ServiceState, SocketObservationPayload, SocketProtocol, SocketRecord,
+    UserObservationPayload, UserRecord,
 };
 pub use supervisor::{ScanCycleResult, ScannerSupervisor, SCANNER_TIMEOUT_MS};
 pub use target::TargetDescriptor;

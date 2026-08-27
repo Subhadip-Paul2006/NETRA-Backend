@@ -230,12 +230,17 @@ flowchart TD
 
 ## 12. Phase 8: Network Intelligence & Topology Discovery
 
-* **Status**: `PLANNED`
-* **Goal**: Synthesize cross-agent local network reachability maps.
+* **Status**: `IN PROGRESS` (Phase 8.1 & Phase 8.2 COMPLETED)
+* **Goal**: Synthesize cross-agent local network reachability maps and passive network observation.
 * **Scope**:
-  - ARP table and routing table passive extraction.
-  - Gateway traceroute and subnet neighbor correlation.
-* **Exit Gate**: Correctly maps local default gateway and adjacent hosts in under 10ms.
+  - Core network domain models, IP classification, SHA-256 MAC pseudonymization, in-memory topology builder (`netra-core::network`).
+  - Native OS Network Interface Posture Scanner (`scanner.interfaces.v1`):
+    - Windows: `GetAdaptersAddresses` IP Helper API (`IMPLEMENTED + NATIVE TESTED`).
+    - Linux: `/sys/class/net` and `/proc/net/dev` parser (`FIXTURE TESTED`).
+    - macOS: Stubs (`NOT NATIVE TESTED`).
+  - ARP table, neighbor cache, and routing table passive extraction (sub-phases 8.3 - 8.6).
+  - In-memory topology synthesis, posture finding rules, CLI and REST API integration (sub-phases 8.7 - 8.10).
+* **Exit Gate**: Correctly enumerates network interfaces with zero packet transmission and strict SHA-256 MAC pseudonymization in $< 500\text{ ms}$.
 
 ---
 

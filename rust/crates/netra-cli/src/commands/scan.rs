@@ -112,6 +112,12 @@ fn parse_domain_string(s: &str) -> Option<ObservationType> {
         "user" | "users" | "account" | "accounts" => Some(ObservationType::Users),
         "svc" | "service" | "services" => Some(ObservationType::Services),
         "os" | "os_config" | "config" => Some(ObservationType::OsConfig),
+        "interface" | "interfaces" | "iface" | "ifaces" | "net" | "network" => {
+            Some(ObservationType::Interfaces)
+        }
+        "route" | "routes" | "routing" => Some(ObservationType::Routes),
+        "dns" => Some(ObservationType::Dns),
+        "neighbor" | "neighbors" | "arp" => Some(ObservationType::Neighbors),
         _ => None,
     }
 }

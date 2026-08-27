@@ -1,6 +1,8 @@
 #[cfg(windows)]
 pub mod firewall;
 #[cfg(windows)]
+pub mod interfaces;
+#[cfg(windows)]
 pub mod os_config;
 #[cfg(windows)]
 pub mod process;

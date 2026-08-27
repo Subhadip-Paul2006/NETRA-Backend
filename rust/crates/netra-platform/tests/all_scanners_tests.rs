@@ -5,7 +5,7 @@ use netra_platform::scanners::*;
 async fn test_all_platform_scanners_native_execution() {
     let device_id = DeviceId::new();
     let scanners = create_all_platform_scanners(false);
-    assert_eq!(scanners.len(), 6);
+    assert_eq!(scanners.len(), 7);
 
     for scanner in scanners {
         let obs = scanner.scan(&device_id).await.unwrap();
