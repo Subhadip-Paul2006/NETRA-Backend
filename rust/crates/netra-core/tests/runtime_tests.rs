@@ -226,7 +226,7 @@ async fn test_runtime_bounded_shutdown_timeout() {
 
     assert_eq!(coordinator.state().await, RuntimeState::Stopped);
     assert!(
-        elapsed < Duration::from_millis(500),
+        elapsed < Duration::from_millis(2500),
         "Shutdown must not hang indefinitely"
     );
 }

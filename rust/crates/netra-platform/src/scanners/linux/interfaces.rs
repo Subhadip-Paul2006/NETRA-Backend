@@ -25,7 +25,6 @@ pub fn parse_linux_operstate(state: &str) -> InterfaceStatus {
 /// Parses a Linux `/proc/net/dev` content string into a list of [`InterfaceRecord`] items.
 pub fn parse_proc_net_dev(content: &str) -> Vec<InterfaceRecord> {
     let mut interfaces = Vec::new();
-    let mut index = 1;
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -52,6 +51,7 @@ pub fn parse_proc_net_dev(content: &str) -> Vec<InterfaceRecord> {
             InterfaceType::Other
         };
 
+        let index = (interfaces.len() as u32) + 1;
         interfaces.push(InterfaceRecord {
             interface_name: iface_name.clone(),
             friendly_name: Some(iface_name),
@@ -67,8 +67,6 @@ pub fn parse_proc_net_dev(content: &str) -> Vec<InterfaceRecord> {
             is_virtual: interface_type == InterfaceType::Tunnel
                 || interface_type == InterfaceType::Virtual,
         });
-
-        index += 1;
     }
 
     interfaces
