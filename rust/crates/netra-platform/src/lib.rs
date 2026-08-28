@@ -44,9 +44,11 @@ pub use info::detect_platform_info;
 pub use keystore::create_insecure_dev_keystore;
 pub use keystore::create_platform_keystore;
 pub use scanners::{
-    create_all_platform_scanners, create_interface_scanner, create_socket_scanner,
-    PlatformFirewallScanner, PlatformInterfaceScanner, PlatformOsConfigScanner,
-    PlatformProcessScanner, PlatformServiceScanner, PlatformSocketScanner, PlatformUserScanner,
+    create_all_platform_scanners, create_dns_scanner, create_interface_scanner,
+    create_neighbor_scanner, create_route_scanner, create_socket_scanner, PlatformDnsScanner,
+    PlatformFirewallScanner, PlatformInterfaceScanner, PlatformNeighborScanner,
+    PlatformOsConfigScanner, PlatformProcessScanner, PlatformRouteScanner, PlatformServiceScanner,
+    PlatformSocketScanner, PlatformUserScanner,
 };
 
 pub use ipc::{

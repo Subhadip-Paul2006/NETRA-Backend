@@ -97,6 +97,9 @@ pub trait OSAdapter: Send + Sync {
 | :--- | :--- | :--- | :--- |
 | **`SCAN_NETWORK`** | ★ Full Native Support | ★ Full Native Support | ★ Full Native Support |
 | **`SCAN_INTERFACES`** | ★ `GetAdaptersAddresses` (`NATIVE TESTED`) | ★ `/sys/class/net` (`FIXTURE TESTED`) | ⚠ Stub (`NOT NATIVE TESTED`) |
+| **`SCAN_ROUTES`** | ★ `GetIpForwardTable2` (`NATIVE TESTED`) | ★ `/proc/net/route` (`FIXTURE TESTED`) | ⚠ Stub (`NOT NATIVE TESTED`) |
+| **`SCAN_DNS`** | ★ `GetAdaptersAddresses` (`NATIVE TESTED`) | ★ `/etc/resolv.conf` (`FIXTURE TESTED`) | ⚠ Stub (`NOT NATIVE TESTED`) |
+| **`SCAN_NEIGHBORS`** | ★ `GetIpNetTable2` ARP+NDP (`NATIVE TESTED`) | ★ Netlink `RTM_GETNEIGH` + `/proc/net/arp` fallback (`FIXTURE TESTED`) | ⚠ Stub `PrivilegeStatus::Unsupported` (`NOT NATIVE TESTED`) |
 | **`SCAN_PROCESSES`** | ★ Full Native Support | ★ Full Native Support | ★ Full Native Support |
 | **`SCAN_FIREWALL`** | ★ `INetFwPolicy2` COM | ★ `nftables` / `iptables` | ★ `pfctl` Inspection |
 | **`OBSERVE_TOPOLOGY`** | ★ `GetIpNetTable2` | ★ `ip neigh` / Netlink | ★ `sysctl` Routing Socket |

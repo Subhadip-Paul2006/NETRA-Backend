@@ -230,17 +230,29 @@ flowchart TD
 
 ## 12. Phase 8: Network Intelligence & Topology Discovery
 
-* **Status**: `IN PROGRESS` (Phase 8.1 & Phase 8.2 COMPLETED)
+* **Status**: `IN PROGRESS` (Phase 8.1, Phase 8.2, Phase 8.3, Phase 8.4 & Phase 8.5 COMPLETED & VERIFIED)
 * **Goal**: Synthesize cross-agent local network reachability maps and passive network observation.
 * **Scope**:
-  - Core network domain models, IP classification, SHA-256 MAC pseudonymization, in-memory topology builder (`netra-core::network`).
+  - Core network domain models, IP classification, SHA-256 MAC pseudonymization, in-memory topology builder (`netra-core::network`) (`COMPLETED & VERIFIED`).
   - Native OS Network Interface Posture Scanner (`scanner.interfaces.v1`):
     - Windows: `GetAdaptersAddresses` IP Helper API (`IMPLEMENTED + NATIVE TESTED`).
-    - Linux: `/sys/class/net` and `/proc/net/dev` parser (`FIXTURE TESTED`).
-    - macOS: Stubs (`NOT NATIVE TESTED`).
-  - ARP table, neighbor cache, and routing table passive extraction (sub-phases 8.3 - 8.6).
-  - In-memory topology synthesis, posture finding rules, CLI and REST API integration (sub-phases 8.7 - 8.10).
-* **Exit Gate**: Correctly enumerates network interfaces with zero packet transmission and strict SHA-256 MAC pseudonymization in $< 500\text{ ms}$.
+    - Linux: `/sys/class/net` and `/proc/net/dev` parser (`IMPLEMENTED + FIXTURE TESTED`).
+    - macOS: Stubs (`STUB + NOT NATIVE TESTED`).
+  - Native OS Routing Table & Default Gateway Posture Scanner (`scanner.routes.v1`):
+    - Windows: `GetIpForwardTable2` IP Helper API with metric-based default gateway derivation (`IMPLEMENTED + NATIVE TESTED`).
+    - Linux: `/proc/net/route` and `/proc/net/ipv6_route` passive parsers (`IMPLEMENTED + FIXTURE TESTED`).
+    - macOS: Stubs with explicit `PrivilegeStatus::Unsupported` (`STUB + NOT NATIVE TESTED`).
+  - Native OS DNS Configuration Posture Scanner (`scanner.dns.v1`):
+    - Windows: `GetAdaptersAddresses` (`FirstDnsServerAddress`, `DnsSuffix`, IPv4/IPv6 classification) (`IMPLEMENTED + NATIVE TESTED`).
+    - Linux: `/etc/resolv.conf` and `/run/systemd/resolve/resolv.conf` passive file parsers (`IMPLEMENTED + FIXTURE TESTED`).
+    - macOS: Stubs with explicit `PrivilegeStatus::Unsupported` (`STUB + NOT NATIVE TESTED`).
+  - Native OS Neighbor Discovery Posture Scanner (`scanner.neighbors.v1`):
+    - Windows: `GetIpNetTable2` IP Helper API (IPv4 ARP + IPv6 NDP) (`IMPLEMENTED + NATIVE TESTED`).
+    - Linux: Netlink `RTM_GETNEIGH` (IPv4 ARP + IPv6 NDP) and `/proc/net/arp` fallback (`IMPLEMENTED + FIXTURE TESTED`).
+    - macOS: Stubs with explicit `PrivilegeStatus::Unsupported` (`STUB + NOT NATIVE TESTED`).
+  - In-memory topology synthesis (sub-phase 8.6).
+  - Network posture finding rules, CLI and REST API integration (sub-phases 8.7 - 8.10).
+* **Exit Gate**: Correctly enumerates network interfaces, kernel routing tables, DNS configuration, and Layer-2/Layer-3 neighbor tables with zero packet transmission, zero active discovery, strict SHA-256 MAC pseudonymization, and deterministic default gateway derivation in $< 500\text{ ms}$.
 
 ---
 
