@@ -42,9 +42,7 @@ jobs:
         continue-on-error: true
 
       - name: Run Clippy Linter
-        run: |
-          cargo clippy --workspace --all-targets --all-features --message-format=short || true
-          cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
 
       - name: Capture Clippy Output on Failure
         if: failure()

@@ -7,11 +7,9 @@ async fn test_platform_keystore_factory_and_crud() {
     let temp_dir = TempDir::new().unwrap();
     let keystore = create_platform_keystore(Some(temp_dir.path().to_path_buf())).unwrap();
 
-    let is_avail = keystore.is_available().await;
-
     #[cfg(windows)]
     {
-        assert!(is_avail);
+        assert!(keystore.is_available().await);
 
         let key_id = "key_01918a2b3c4d7e8f9a0b1c2d3e4f5a6b";
         let secret = [77u8; 32];
@@ -30,23 +28,16 @@ async fn test_platform_keystore_factory_and_crud() {
 
     #[cfg(not(windows))]
     {
-        if !is_avail {
-            assert!(keystore
-                .store_private_key("key_test", &[0u8; 32])
-                .await
-                .is_err());
-        }
+        let res = keystore.store_private_key("key_test", &[0u8; 32]).await;
+        assert!(res.is_err());
     }
 }
 
 #[tokio::test]
 async fn test_linux_failsafe_rejection() {
     let linux_keystore = LinuxSecretServiceKeystore::new();
-    if !linux_keystore.is_available().await {
-        let err = linux_keystore
-            .store_private_key("key_test", &[1u8; 32])
-            .await
-            .unwrap_err();
-        assert!(err.to_string().contains("ERR_KEYSTORE_UNAVAILABLE"));
-    }
+    let res = linux_keystore
+        .store_private_key("key_test", &[1u8; 32])
+        .await;
+    assert!(res.is_err());
 }
