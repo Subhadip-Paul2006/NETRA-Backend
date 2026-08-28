@@ -64,8 +64,7 @@ pub fn parse_proc_net_dev(content: &str) -> Vec<InterfaceRecord> {
             is_loopback,
             is_point_to_point: false,
             is_dhcp_enabled: None,
-            is_virtual: interface_type == InterfaceType::Tunnel
-                || interface_type == InterfaceType::Virtual,
+            is_virtual: interface_type == InterfaceType::Tunnel,
         });
     }
 

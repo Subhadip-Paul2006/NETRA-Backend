@@ -51,16 +51,8 @@ pub fn parse_proc_net_tcp4_line(line: &str) -> Option<SocketRecord> {
         protocol: SocketProtocol::Tcp,
         local_address: local_ip.to_string(),
         local_port,
-        remote_address: if remote_port > 0 {
-            Some(remote_ip.to_string())
-        } else {
-            None
-        },
-        remote_port: if remote_port > 0 {
-            Some(remote_port)
-        } else {
-            None
-        },
+        remote_address: (remote_port > 0).then(|| remote_ip.to_string()),
+        remote_port: (remote_port > 0).then_some(remote_port),
         state: state.to_string(),
         owning_pid: 0, // Inode to PID mapping can be enriched via /proc/[pid]/fd
         process_name: None,

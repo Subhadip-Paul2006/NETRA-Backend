@@ -42,7 +42,13 @@ impl ProcessIsolation for LinuxProcessIsolation {
                     let _ = libc::setrlimit(libc::RLIMIT_AS, &rlim);
 
                     // Ensure child terminates if supervisor parent dies
-                    let _ = libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+                    let _ = libc::prctl(
+                        libc::PR_SET_PDEATHSIG,
+                        libc::SIGKILL as libc::c_ulong,
+                        0,
+                        0,
+                        0,
+                    );
                     Ok(())
                 });
             }

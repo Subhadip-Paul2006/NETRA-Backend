@@ -70,8 +70,4 @@ impl PostureScanner for PlatformProcessScanner {
     }
 }
 
-fn whoami_hostname() -> String {
-    std::env::var("COMPUTERNAME")
-        .or_else(|_| std::env::var("HOSTNAME"))
-        .unwrap_or_else(|_| "localhost".to_string())
-}
+use super::whoami_hostname;
