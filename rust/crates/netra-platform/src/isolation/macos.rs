@@ -37,7 +37,7 @@ impl ProcessIsolation for MacOSProcessIsolation {
                         rlim_cur: mem_limit,
                         rlim_max: mem_limit,
                     };
-                    libc::setrlimit(libc::RLIMIT_AS, &rlim);
+                    let _ = libc::setrlimit(libc::RLIMIT_AS, &rlim);
                     Ok(())
                 });
             }

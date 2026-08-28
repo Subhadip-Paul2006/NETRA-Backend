@@ -30,7 +30,12 @@ async fn test_platform_keystore_factory_and_crud() {
 
     #[cfg(not(windows))]
     {
-        assert!(!is_avail || is_avail);
+        if !is_avail {
+            assert!(keystore
+                .store_private_key("key_test", &[0u8; 32])
+                .await
+                .is_err());
+        }
     }
 }
 
