@@ -44,6 +44,15 @@ jobs:
       - name: Run Clippy Linter
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+      - name: Capture Clippy Output on Failure
+        if: failure()
+        shell: bash
+        run: |
+          echo "## Clippy Diagnostics" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cargo clippy --workspace --all-targets --all-features >> $GITHUB_STEP_SUMMARY 2>&1 || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
       - name: Run Unit & Integration Test Suites
         run: cargo test --workspace --verbose
 
