@@ -4,16 +4,16 @@
 
 pub mod firewall;
 pub mod interfaces;
-#[allow(dead_code)]
+#[allow(dead_code, unused_imports)]
 pub mod linux;
-#[allow(dead_code)]
+#[allow(dead_code, unused_imports)]
 pub mod macos;
 pub mod os_config;
 pub mod process;
 pub mod services;
 pub mod socket;
 pub mod users;
-#[allow(dead_code)]
+#[allow(dead_code, unused_imports)]
 pub mod windows;
 
 pub use firewall::PlatformFirewallScanner;

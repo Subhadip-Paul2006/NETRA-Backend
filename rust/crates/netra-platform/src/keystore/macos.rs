@@ -58,6 +58,6 @@ impl KeyStore for MacosKeychainKeystore {
     }
 
     async fn is_available(&self) -> bool {
-        cfg!(target_os = "macos")
+        false
     }
 }

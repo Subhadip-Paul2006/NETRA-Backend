@@ -2,15 +2,14 @@ use crate::traits::{OsFamily, PlatformInfo};
 
 /// Detects the platform information for the current host environment.
 pub fn detect_platform_info() -> PlatformInfo {
-    let os_family = if cfg!(target_os = "windows") {
-        OsFamily::Windows
-    } else if cfg!(target_os = "linux") {
-        OsFamily::Linux
-    } else if cfg!(target_os = "macos") {
-        OsFamily::MacOS
-    } else {
-        OsFamily::Unknown
-    };
+    #[cfg(target_os = "windows")]
+    let os_family = OsFamily::Windows;
+    #[cfg(target_os = "linux")]
+    let os_family = OsFamily::Linux;
+    #[cfg(target_os = "macos")]
+    let os_family = OsFamily::MacOS;
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    let os_family = OsFamily::Unknown;
 
     let arch = std::env::consts::ARCH.to_string();
 

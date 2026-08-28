@@ -77,9 +77,10 @@ pub fn collect_linux_interfaces() -> Result<ObservationPayload> {
     let sys_net = Path::new("/sys/class/net");
     let mut interfaces = Vec::new();
 
-    if sys_net.exists() && sys_net.is_dir() {
+    if sys_net.is_dir() {
         if let Ok(entries) = fs::read_dir(sys_net) {
-            for (index, entry) in (1u32..).zip(entries.flatten()) {
+            for (idx, entry) in entries.flatten().enumerate() {
+                let index = (idx + 1) as u32;
                 let name = entry.file_name().to_string_lossy().to_string();
                 let iface_path = entry.path();
 
@@ -149,8 +150,12 @@ pub fn collect_linux_interfaces() -> Result<ObservationPayload> {
                 });
             }
         }
-    } else if let Ok(content) = fs::read_to_string("/proc/net/dev") {
-        interfaces = parse_proc_net_dev(&content);
+    }
+
+    if interfaces.is_empty() {
+        if let Ok(content) = fs::read_to_string("/proc/net/dev") {
+            interfaces = parse_proc_net_dev(&content);
+        }
     }
 
     Ok(ObservationPayload::Interfaces(
