@@ -100,13 +100,14 @@ mod tests {
         match obs.payload {
             netra_core::observation::ObservationPayload::Sockets(sock_payload) => {
                 #[cfg(windows)]
-                {
-                    assert!(
-                        !sock_payload.sockets.is_empty(),
-                        "Expected at least one socket on Windows"
-                    );
+                assert!(
+                    !sock_payload.sockets.is_empty(),
+                    "Expected at least one socket on Windows"
+                );
+
+                for sock in &sock_payload.sockets {
+                    assert!(!sock.local_address.is_empty());
                 }
-                let _ = sock_payload;
             }
             _ => panic!("Expected Sockets payload variant"),
         }

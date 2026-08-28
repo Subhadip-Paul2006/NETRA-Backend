@@ -115,21 +115,18 @@ mod tests {
         match obs.payload {
             netra_core::observation::ObservationPayload::Interfaces(iface_payload) => {
                 #[cfg(windows)]
-                {
-                    assert!(
-                        !iface_payload.interfaces.is_empty(),
-                        "Expected at least one network interface on Windows host"
-                    );
+                assert!(
+                    !iface_payload.interfaces.is_empty(),
+                    "Expected at least one network interface on Windows host"
+                );
 
-                    for iface in &iface_payload.interfaces {
-                        assert!(!iface.interface_name.is_empty());
-                        if let Some(ref mac_hash) = iface.mac_address_hash {
-                            assert_eq!(mac_hash.len(), 64);
-                            assert!(netra_core::network::is_valid_mac_hash(mac_hash));
-                        }
+                for iface in &iface_payload.interfaces {
+                    assert!(!iface.interface_name.is_empty());
+                    if let Some(ref mac_hash) = iface.mac_address_hash {
+                        assert_eq!(mac_hash.len(), 64);
+                        assert!(netra_core::network::is_valid_mac_hash(mac_hash));
                     }
                 }
-                let _ = iface_payload;
             }
             _ => panic!("Expected Interfaces payload variant"),
         }

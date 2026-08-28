@@ -44,36 +44,33 @@ async fn test_native_platform_interface_scanner_execution() {
     match &obs.payload {
         ObservationPayload::Interfaces(payload) => {
             #[cfg(windows)]
-            {
-                assert!(
-                    !payload.interfaces.is_empty(),
-                    "Windows host should have at least one network interface"
-                );
+            assert!(
+                !payload.interfaces.is_empty(),
+                "Windows host should have at least one network interface"
+            );
 
-                for iface in &payload.interfaces {
-                    assert!(!iface.interface_name.is_empty());
-                    // Privacy Guarantee: Raw MAC is NEVER stored; hash must be 64-char hex if present
-                    if let Some(ref mac_hash) = iface.mac_address_hash {
-                        assert_eq!(mac_hash.len(), 64);
-                        assert!(is_valid_mac_hash(mac_hash));
-                        assert!(
-                            !mac_hash.contains(':'),
-                            "MAC hash must not contain raw delimiters"
-                        );
-                    }
+            for iface in &payload.interfaces {
+                assert!(!iface.interface_name.is_empty());
+                // Privacy Guarantee: Raw MAC is NEVER stored; hash must be 64-char hex if present
+                if let Some(ref mac_hash) = iface.mac_address_hash {
+                    assert_eq!(mac_hash.len(), 64);
+                    assert!(is_valid_mac_hash(mac_hash));
+                    assert!(
+                        !mac_hash.contains(':'),
+                        "MAC hash must not contain raw delimiters"
+                    );
+                }
 
-                    // IP Invariant: All IPs must have valid classification
-                    for ip_rec in &iface.ip_addresses {
-                        assert!(!ip_rec.ip_address.is_empty());
-                        if ip_rec.is_ipv6 {
-                            assert!(ip_rec.ip_address.contains(':'));
-                        } else {
-                            assert!(ip_rec.ip_address.contains('.'));
-                        }
+                // IP Invariant: All IPs must have valid classification
+                for ip_rec in &iface.ip_addresses {
+                    assert!(!ip_rec.ip_address.is_empty());
+                    if ip_rec.is_ipv6 {
+                        assert!(ip_rec.ip_address.contains(':'));
+                    } else {
+                        assert!(ip_rec.ip_address.contains('.'));
                     }
                 }
             }
-            let _ = payload;
         }
         _ => panic!("Expected Interfaces payload variant"),
     }

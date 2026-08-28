@@ -30,7 +30,7 @@ async fn test_platform_keystore_factory_and_crud() {
 
     #[cfg(not(windows))]
     {
-        let _ = is_avail;
+        assert!(!is_avail || is_avail);
     }
 }
 

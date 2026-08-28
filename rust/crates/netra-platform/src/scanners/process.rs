@@ -45,15 +45,12 @@ impl PostureScanner for PlatformProcessScanner {
         );
 
         #[cfg(not(windows))]
-        let (payload, privilege_status) = {
-            let _ = self.hash_binaries;
-            (
-                netra_core::observation::ObservationPayload::Processes(
-                    netra_core::observation::ProcessObservationPayload::default(),
-                ),
-                PrivilegeStatus::Unsupported,
-            )
-        };
+        let (payload, privilege_status) = (
+            netra_core::observation::ObservationPayload::Processes(
+                netra_core::observation::ProcessObservationPayload::default(),
+            ),
+            PrivilegeStatus::Unsupported,
+        );
 
         let duration_ms = start.elapsed().as_millis() as u64;
 

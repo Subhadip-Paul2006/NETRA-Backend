@@ -38,10 +38,10 @@ impl ProcessIsolation for LinuxProcessIsolation {
                         rlim_cur: mem_limit,
                         rlim_max: mem_limit,
                     };
-                    libc::setrlimit(libc::RLIMIT_AS, &rlim);
+                    let _ = libc::setrlimit(libc::RLIMIT_AS, &rlim);
 
                     // Ensure child terminates if supervisor parent dies
-                    libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+                    let _ = libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
                     Ok(())
                 });
             }
