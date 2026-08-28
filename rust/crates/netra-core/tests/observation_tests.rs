@@ -1,5 +1,9 @@
 use netra_core::id::DeviceId;
-use netra_core::observation::*;
+use netra_core::observation::{
+    ConfidenceScore, FirewallObservationPayload, FirewallProfileRecord, Observation,
+    ObservationPayload, ObservationType, PrivilegeStatus, SensitivityLevel,
+    SocketObservationPayload, SocketProtocol, SocketRecord, TargetDescriptor,
+};
 
 #[test]
 fn test_all_target_descriptors_and_keys() {

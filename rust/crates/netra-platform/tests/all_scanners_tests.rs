@@ -1,5 +1,5 @@
 use netra_core::id::DeviceId;
-use netra_platform::scanners::*;
+use netra_platform::scanners::create_all_platform_scanners;
 
 #[tokio::test]
 async fn test_all_platform_scanners_native_execution() {

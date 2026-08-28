@@ -31,6 +31,7 @@ impl ProcessIsolation for MacOSProcessIsolation {
         {
             use std::os::unix::process::CommandExt;
             let mem_limit = self.memory_limit_bytes;
+            // SAFETY: pre_exec is safely initializing address space rlimit in the child process.
             unsafe {
                 cmd.pre_exec(move || {
                     let rlim = libc::rlimit {

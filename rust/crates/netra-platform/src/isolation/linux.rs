@@ -31,6 +31,7 @@ impl ProcessIsolation for LinuxProcessIsolation {
         {
             use std::os::unix::process::CommandExt;
             let mem_limit = self.memory_limit_bytes;
+            // SAFETY: pre_exec is safely initializing rlimit and death signal in the child process.
             unsafe {
                 cmd.pre_exec(move || {
                     // Enforce memory address space limit

@@ -25,9 +25,7 @@ impl UnixDomainSocketServer {
         let path = socket_path.as_ref().to_path_buf();
 
         // Remove stale socket file if it exists
-        if path.exists() {
-            let _ = std::fs::remove_file(&path);
-        }
+        let _ = std::fs::remove_file(&path);
 
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
@@ -117,9 +115,7 @@ impl IpcServer for UnixDomainSocketServer {
 
 impl Drop for UnixDomainSocketServer {
     fn drop(&mut self) {
-        if self.socket_path.exists() {
-            let _ = std::fs::remove_file(&self.socket_path);
-        }
+        let _ = std::fs::remove_file(&self.socket_path);
     }
 }
 

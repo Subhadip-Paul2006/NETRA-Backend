@@ -1,5 +1,11 @@
 use netra_core::id::DeviceId;
-use netra_core::observation::*;
+use netra_core::observation::{
+    ConfidenceScore, FirewallObservationPayload, FirewallProfileRecord, Observation,
+    ObservationPayload, ObservationType, OsConfigObservationPayload, OsConfigRecord,
+    PrivilegeStatus, SensitivityLevel, ServiceObservationPayload, ServiceRecord, ServiceStartType,
+    ServiceState, SocketObservationPayload, SocketProtocol, SocketRecord, TargetDescriptor,
+    UserObservationPayload, UserRecord,
+};
 use netra_core::rules::RuleEngine;
 use netra_core::storage::repositories::findings::FindingsRepository;
 use netra_core::storage::repositories::queue::ObservationQueueRepository;
