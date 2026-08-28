@@ -75,22 +75,30 @@ impl IpcServer for UnixDomainSocketServer {
         let (peer_pid, peer_uid) = {
             use std::os::unix::io::AsRawFd;
             let fd = stream.as_raw_fd();
+            // SAFETY: ucred is a plain C struct zero-initialized before passing to getsockopt.
             let mut ucred: libc::ucred = unsafe { std::mem::zeroed() };
             let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+            // SAFETY: getsockopt retrieves peer credentials safely for the connected socket descriptor.
             let ret = unsafe {
                 libc::getsockopt(
                     fd,
                     libc::SOL_SOCKET,
                     libc::SO_PEERCRED,
-                    &mut ucred as *mut _ as *mut _,
+                    &mut ucred as *mut _ as *mut libc::c_void,
                     &mut len,
                 )
             };
             if ret == 0 {
-                let pid = ucred.pid as u32;
-                let uid = ucred.uid;
-                debug!(pid, uid, "Retrieved SO_PEERCRED from Unix Domain Socket");
-                (Some(pid), Some(uid))
+                let pid: Option<u32> = ucred.pid.try_into().ok();
+                let uid = Some(ucred.uid);
+                if let Some(p) = pid {
+                    debug!(
+                        pid = p,
+                        uid = ucred.uid,
+                        "Retrieved SO_PEERCRED from Unix Domain Socket"
+                    );
+                }
+                (pid, uid)
             } else {
                 (None, None)
             }
