@@ -27,42 +27,65 @@ impl Default for LinuxSecretServiceKeystore {
 #[async_trait]
 impl KeyStore for LinuxSecretServiceKeystore {
     async fn store_private_key(&self, _key_id: &str, _secret_bytes: &[u8]) -> Result<()> {
-        if !self.is_available().await {
-            return Err(NetraError::crypto(
-                "ERR_KEYSTORE_UNAVAILABLE: Linux Secret Service (D-Bus) is not accessible. \
-                 Headless servers must configure an explicit OS secret provider or key agent. \
-                 Weak unencrypted local fallbacks are structurally prohibited in release builds.",
-            ));
+        #[cfg(target_os = "linux")]
+        {
+            if !self.is_available().await {
+                return Err(NetraError::crypto(
+                    "ERR_KEYSTORE_UNAVAILABLE: Linux Secret Service (D-Bus) is not accessible. \
+                     Headless servers must configure an explicit OS secret provider or key agent. \
+                     Weak unencrypted local fallbacks are structurally prohibited in release builds.",
+                ));
+            }
+            Err(NetraError::crypto(
+                "ERR_KEYSTORE_UNAVAILABLE: Secret Service connection not initialized",
+            ))
         }
-
-        // Production D-Bus libsecret integration connects here
-        Err(NetraError::crypto(
-            "ERR_KEYSTORE_UNAVAILABLE: Secret Service connection not initialized",
-        ))
+        #[cfg(not(target_os = "linux"))]
+        {
+            Err(NetraError::crypto(
+                "ERR_KEYSTORE_UNAVAILABLE: Linux Secret Service is only available on Linux targets",
+            ))
+        }
     }
 
     async fn retrieve_private_key(&self, _key_id: &str) -> Result<Zeroizing<Vec<u8>>> {
-        if !self.is_available().await {
-            return Err(NetraError::crypto(
-                "ERR_KEYSTORE_UNAVAILABLE: Linux Secret Service (D-Bus) is not accessible.",
-            ));
+        #[cfg(target_os = "linux")]
+        {
+            if !self.is_available().await {
+                return Err(NetraError::crypto(
+                    "ERR_KEYSTORE_UNAVAILABLE: Linux Secret Service (D-Bus) is not accessible.",
+                ));
+            }
+            Err(NetraError::crypto(
+                "ERR_KEYSTORE_UNAVAILABLE: Secret Service connection not initialized",
+            ))
         }
-
-        Err(NetraError::crypto(
-            "ERR_KEYSTORE_UNAVAILABLE: Secret Service connection not initialized",
-        ))
+        #[cfg(not(target_os = "linux"))]
+        {
+            Err(NetraError::crypto(
+                "ERR_KEYSTORE_UNAVAILABLE: Linux Secret Service is only available on Linux targets",
+            ))
+        }
     }
 
     async fn delete_private_key(&self, _key_id: &str) -> Result<()> {
-        if !self.is_available().await {
-            return Err(NetraError::crypto(
-                "ERR_KEYSTORE_UNAVAILABLE: Linux Secret Service (D-Bus) is not accessible.",
-            ));
+        #[cfg(target_os = "linux")]
+        {
+            if !self.is_available().await {
+                return Err(NetraError::crypto(
+                    "ERR_KEYSTORE_UNAVAILABLE: Linux Secret Service (D-Bus) is not accessible.",
+                ));
+            }
+            Err(NetraError::crypto(
+                "ERR_KEYSTORE_UNAVAILABLE: Secret Service connection not initialized",
+            ))
         }
-
-        Err(NetraError::crypto(
-            "ERR_KEYSTORE_UNAVAILABLE: Secret Service connection not initialized",
-        ))
+        #[cfg(not(target_os = "linux"))]
+        {
+            Err(NetraError::crypto(
+                "ERR_KEYSTORE_UNAVAILABLE: Linux Secret Service is only available on Linux targets",
+            ))
+        }
     }
 
     async fn is_available(&self) -> bool {

@@ -205,7 +205,14 @@ impl KeyStore for WindowsDpapiKeystore {
     }
 
     async fn is_available(&self) -> bool {
-        cfg!(windows)
+        #[cfg(windows)]
+        {
+            true
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
     }
 }
 

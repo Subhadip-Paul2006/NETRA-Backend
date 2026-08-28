@@ -22,38 +22,20 @@ impl Default for MacosKeychainKeystore {
 #[async_trait]
 impl KeyStore for MacosKeychainKeystore {
     async fn store_private_key(&self, _key_id: &str, _secret_bytes: &[u8]) -> Result<()> {
-        if !self.is_available().await {
-            return Err(NetraError::crypto(
-                "ERR_KEYSTORE_UNAVAILABLE: macOS Keychain is not accessible.",
-            ));
-        }
-
         Err(NetraError::crypto(
-            "ERR_KEYSTORE_UNAVAILABLE: macOS Keychain not initialized",
+            "ERR_KEYSTORE_UNAVAILABLE: macOS Keychain is not accessible.",
         ))
     }
 
     async fn retrieve_private_key(&self, _key_id: &str) -> Result<Zeroizing<Vec<u8>>> {
-        if !self.is_available().await {
-            return Err(NetraError::crypto(
-                "ERR_KEYSTORE_UNAVAILABLE: macOS Keychain is not accessible.",
-            ));
-        }
-
         Err(NetraError::crypto(
-            "ERR_KEYSTORE_UNAVAILABLE: macOS Keychain not initialized",
+            "ERR_KEYSTORE_UNAVAILABLE: macOS Keychain is not accessible.",
         ))
     }
 
     async fn delete_private_key(&self, _key_id: &str) -> Result<()> {
-        if !self.is_available().await {
-            return Err(NetraError::crypto(
-                "ERR_KEYSTORE_UNAVAILABLE: macOS Keychain is not accessible.",
-            ));
-        }
-
         Err(NetraError::crypto(
-            "ERR_KEYSTORE_UNAVAILABLE: macOS Keychain not initialized",
+            "ERR_KEYSTORE_UNAVAILABLE: macOS Keychain is not accessible.",
         ))
     }
 
