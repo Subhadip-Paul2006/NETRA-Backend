@@ -89,11 +89,7 @@ impl IpcServer for UnixDomainSocketServer {
             if ret == 0 {
                 let pid = ucred.pid as u32;
                 let uid = ucred.uid;
-                debug!(
-                    pid,
-                    uid,
-                    "Retrieved SO_PEERCRED from Unix Domain Socket"
-                );
+                debug!(pid, uid, "Retrieved SO_PEERCRED from Unix Domain Socket");
                 (Some(pid), Some(uid))
             } else {
                 (None, None)
