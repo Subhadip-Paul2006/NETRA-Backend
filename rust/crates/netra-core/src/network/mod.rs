@@ -10,6 +10,8 @@ pub mod topology;
 pub use ip::IpClassification;
 pub use mac::{hash_mac_bytes, hash_mac_str, is_valid_mac_hash};
 pub use topology::{
-    NetworkTopologySnapshot, TopologyBuilder, TopologyDnsNode, TopologyGatewayNode,
-    TopologyInterfaceNode, TopologyNeighborNode, TopologySubnetRecord,
+    NetworkTopologySnapshot, TopologyBuilder, TopologyCorrelationEdge, TopologyCorrelator,
+    TopologyDnsNode, TopologyEdgeKind, TopologyExtractor, TopologyGatewayNode,
+    TopologyInterfaceNode, TopologyNeighborNode, TopologyObservationPayload, TopologySubnetRecord,
+    NETWORK_SCANNER_IDS, TOPOLOGY_SCANNER_ID,
 };

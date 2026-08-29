@@ -15,6 +15,7 @@ pub mod process;
 pub mod routes;
 pub mod services;
 pub mod socket;
+pub mod topology;
 pub mod users;
 #[allow(dead_code, unused_imports)]
 pub mod windows;
@@ -28,6 +29,12 @@ pub use process::PlatformProcessScanner;
 pub use routes::PlatformRouteScanner;
 pub use services::PlatformServiceScanner;
 pub use socket::PlatformSocketScanner;
+pub use topology::{
+    NetworkTopologySnapshot, TopologyBuilder, TopologyCorrelationEdge, TopologyCorrelator,
+    TopologyDnsNode, TopologyEdgeKind, TopologyExtractor, TopologyGatewayNode,
+    TopologyInterfaceNode, TopologyNeighborNode, TopologyObservationPayload, TopologySubnetRecord,
+    NETWORK_SCANNER_IDS, TOPOLOGY_SCANNER_ID,
+};
 pub use users::PlatformUserScanner;
 
 use netra_core::observation::PostureScanner;

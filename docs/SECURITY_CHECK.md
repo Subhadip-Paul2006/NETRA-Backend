@@ -202,6 +202,14 @@ NETRA enforces strict academic privacy boundaries when correlating web browser p
 * **Allowed**: Correlating browser PID with destination IP, port 443/80, protocol, and reverse DNS domain.
 * **Prohibited**: Under no circumstances shall NETRA read web page DOM trees, form fields, keystrokes, browser history, cookies, or HTTP payloads.
 
+### 7.1 Passive Network Observation & MAC Privacy (Phase 8)
+
+NETRA enforces strict passive-only network telemetry invariants:
+* **Zero Active Network Transmission**: Zero ARP requests, zero NDP router solicitations, zero ICMP pings, and zero active network port scans.
+* **Deterministic SHA-256 MAC Pseudonymization**: Hardware MAC addresses are never stored, queued, or transmitted in plaintext. All MACs are immediately hashed using standard canonical SHA-256 hex digests (`hash_mac_bytes`/`hash_mac_str`).
+* **In-Memory Topology Synthesis**: Topology graph edges correlate interfaces, subnets, gateways, and neighbors entirely in memory without making network calls.
+* **Sensitivity Classification**: Network configuration and topology observations are assigned `SensitivityLevel::Internal` or `SensitivityLevel::Confidential`.
+
 ---
 
 ## 8. Controlled Remediation Security & Verification Loops

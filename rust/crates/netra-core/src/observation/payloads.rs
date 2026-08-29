@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+pub use crate::network::topology::TopologyObservationPayload;
+
 /// Supported transport layer socket protocols.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "UPPERCASE")]
@@ -310,8 +312,13 @@ pub struct NeighborObservationPayload {
 }
 
 /// Top-level strongly typed enum wrapping all supported observation domain payloads.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+///
+/// Note: `Eq` is not derived because the `Topology` variant contains
+/// `NetworkTopologySnapshot` which holds a `ConfidenceScore` (f64-backed),
+/// making full structural equality non-reflexive for NaN values.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "domain", content = "data", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 pub enum ObservationPayload {
     Processes(ProcessObservationPayload),
     Sockets(SocketObservationPayload),
@@ -323,6 +330,9 @@ pub enum ObservationPayload {
     Routes(RouteObservationPayload),
     Dns(DnsObservationPayload),
     Neighbors(NeighborObservationPayload),
+    /// Synthesized in-memory network topology (Phase 8.6).
+    /// Derived from the 4 network scanner observations in the same scan cycle.
+    Topology(TopologyObservationPayload),
 }
 
 #[cfg(test)]

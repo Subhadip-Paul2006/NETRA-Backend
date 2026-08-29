@@ -21,6 +21,9 @@ pub enum ObservationType {
     Routes,
     Dns,
     Neighbors,
+    /// Synthesized in-memory network topology (Phase 8.6).
+    /// Derived from Interfaces, Routes, DNS, and Neighbors scanner observations.
+    Topology,
 }
 
 /// Execution privilege status and capability envelope for an observation collector.

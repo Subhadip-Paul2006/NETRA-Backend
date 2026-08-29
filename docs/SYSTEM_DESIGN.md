@@ -342,10 +342,17 @@ stateDiagram-v2
 
 Scanning capabilities execute inside isolated asynchronous Rust tasks bounded by OS-level resource limits and process containment:
 
-1. **`SCAN_NETWORK`**: Native OS socket inspection (`GetExtendedTcpTable` on Windows via `windows-sys`, Netlink `rtnetlink` / `/proc/net/tcp` on Linux via `nix`, `sysctl KERN_PROC` on macOS). Maps listening ports, bound IPs, and associated process binaries.
-2. **`SCAN_PROCESSES`**: Enumerates running processes, parent PIDs, executable paths, SHA-256 binary hashes, and active CLI parameters.
-3. **`SCAN_FIREWALL`**: Queries kernel packet filters (Windows `INetFwPolicy2`, Linux `nftables`/`iptables`, macOS `pfctl`). Detects disabled profiles or overly permissive `0.0.0.0/0` inbound rules.
-4. **`SCAN_USERS`**: Audits local user accounts, active sudoers, and dormant administrative profiles.
+1. **`SCAN_NETWORK`**: Native OS socket inspection (`GetExtendedTcpTable` on Windows via `windows-sys`, Netlink `rtnetlink` / `/proc/net/tcp` on Linux, `sysctl KERN_PROC` on macOS). Maps listening ports, bound IPs, and associated process binaries.
+2. **`SCAN_INTERFACES`**: Native OS network adapter enumeration (`GetAdaptersAddresses` on Windows, `/sys/class/net` on Linux). Maps operational status, IP addresses, prefix lengths, and SHA-256 pseudonymized MAC hashes.
+3. **`SCAN_ROUTES`**: Native kernel routing table query (`GetIpForwardTable2` on Windows, `/proc/net/route` on Linux). Derives active default gateways deterministically by metric.
+4. **`SCAN_DNS`**: Passive DNS configuration discovery (`GetAdaptersAddresses` on Windows, `/etc/resolv.conf` on Linux). Maps configured resolvers and domain suffixes without performing DNS resolution.
+5. **`SCAN_NEIGHBORS`**: Passive Layer-2/Layer-3 adjacent neighbor cache observation (`GetIpNetTable2` on Windows, Netlink `RTM_GETNEIGH` on Linux). Zero active ARP/NDP probing.
+6. **`IN_MEMORY_TOPOLOGY_SYNTHESIS`**: Deterministic in-memory graph synthesis inside `ScannerSupervisor` (`TopologyCorrelator` + `TopologyExtractor` in `netra-core`). Derives typed correlation edges (`InterfaceHostsSubnet`, `InterfaceHasGateway`, `InterfaceHasNeighbor`, `NeighborIsGateway`, `GatewayOnSubnet`, `DnsOnSubnet`) in pure memory (zero I/O) and persists in a separate SQLite transaction (Transaction B).
+7. **`SCAN_PROCESSES`**: Enumerates running processes, parent PIDs, executable paths, SHA-256 binary hashes, and active CLI parameters.
+8. **`SCAN_FIREWALL`**: Queries kernel packet filters (Windows `INetFwPolicy2`, Linux `nftables`/`iptables`, macOS `pfctl`). Detects disabled profiles or overly permissive `0.0.0.0/0` inbound rules.
+9. **`SCAN_USERS`**: Audits local user accounts, active sudoers, and dormant administrative profiles.
+10. **`SCAN_SERVICES`**: Queries operating system services, binary paths, and start configurations.
+11. **`SCAN_OS_CONFIG`**: Audits platform security posture (UAC, Secure Boot, kernel parameters).
 
 ### Configurable Process Resource Controls:
 * **Linux**: Configured via `cgroups v2` slice (`cpu.max = "20000 100000"` [20% CPU], `memory.max = 104857600` [100MB], `pids.max = 64`). Fallback to POSIX `setrlimit` (`RLIMIT_AS`) if cgroups v2 controller is unavailable.

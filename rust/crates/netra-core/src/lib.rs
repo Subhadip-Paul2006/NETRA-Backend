@@ -56,8 +56,10 @@ pub use ipc::{
 pub use logging::init_logging;
 pub use network::{
     hash_mac_bytes, hash_mac_str, is_valid_mac_hash, IpClassification, NetworkTopologySnapshot,
-    TopologyBuilder, TopologyDnsNode, TopologyGatewayNode, TopologyInterfaceNode,
-    TopologyNeighborNode, TopologySubnetRecord,
+    TopologyBuilder, TopologyCorrelationEdge, TopologyCorrelator, TopologyDnsNode,
+    TopologyEdgeKind, TopologyExtractor, TopologyGatewayNode, TopologyInterfaceNode,
+    TopologyNeighborNode, TopologyObservationPayload, TopologySubnetRecord, NETWORK_SCANNER_IDS,
+    TOPOLOGY_SCANNER_ID,
 };
 pub use observation::{
     ConfidenceScore, DnsObservationPayload, DnsServerRecord, FirewallObservationPayload,

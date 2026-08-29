@@ -317,16 +317,43 @@ Future NETRA security observations, posture findings, and configuration states t
 
 ## 7. Network Intelligence & Topology Architecture
 
-NETRA correlates local network configuration across all enrolled endpoints without invasive port scanning:
+NETRA correlates local network configuration across all enrolled endpoints without invasive active port scanning or packet injection:
+
+### In-Memory Topology Synthesis Pipeline (Phase 8.6)
 
 ```mermaid
-flowchart LR
-    AgentA["Host A (192.168.1.10)"] -->|Report ARP Table| ControlAPI["Control API Graph Synthesizer"]
-    AgentB["Host B (192.168.1.20)"] -->|Report ARP Table| ControlAPI
-    
-    ControlAPI --> PostgresCTE[("PostgreSQL 16 Recursive CTEs<br/>(Reachability & Path Traversal)")]
-    PostgresCTE --> TopologyMap["Synthesized Network Topology Map<br/>• Gateway: 192.168.1.1<br/>• Common Subnet: /24<br/>• Unmanaged Nodes Flagged"]
+flowchart TD
+    subgraph ScanCycle["ScannerSupervisor Scan Cycle"]
+        I["PlatformInterfaceScanner<br/>(scanner.interfaces.v1 - netra-platform)"]
+        R["PlatformRouteScanner<br/>(scanner.routes.v1 - netra-platform)"]
+        D["PlatformDnsScanner<br/>(scanner.dns.v1 - netra-platform)"]
+        N["PlatformNeighborScanner<br/>(scanner.neighbors.v1 - netra-platform)"]
+        
+        I & R & D & N --> TransA[("Transaction A: Batch SQLite Enqueue<br/>(10 Native Observations + Findings)")]
+        
+        TransA --> Step5["Step 5: TopologyExtractor (netra-core)<br/>• Classifies Usable, Partial, Unsupported, Missing Sources<br/>• Extracts Payloads in Memory (Zero I/O)"]
+        
+        Step5 --> Builder["TopologyBuilder (netra-core)<br/>• Deterministic Sorting<br/>• Subnet Synthesis<br/>• Multi-Homing Detection"]
+        
+        Builder --> Correlator["TopologyCorrelator (netra-core, Pure In-Memory)<br/>• Typed Directed Edges<br/>• std::net CIDR Containment<br/>• Deterministic (kind, from_key, to_key) Sort"]
+        
+        Correlator --> TopoObs["TopologyObservationPayload<br/>(snapshot + edges + missing/partial sources)"]
+        
+        TopoObs --> TransB[("Transaction B: Separate Topology Enqueue<br/>(scanner.topology.v1 / ObservationType::Topology)")]
+    end
 ```
+
+### Architectural Ownership & Boundaries
+* **Authoritative Owner**: `netra-core` (`netra-core::network::topology`) is the authoritative owner of all topology domain models, extraction logic (`TopologyExtractor`), normalization logic (`TopologyBuilder`), and edge correlation algorithms (`TopologyCorrelator`). This logic is purely in-memory, platform-neutral, and executes with zero OS syscalls, zero network I/O, and zero filesystem operations.
+* **Platform Collectors**: `netra-platform` owns the OS-specific raw telemetry collectors (`PlatformInterfaceScanner`, `PlatformRouteScanner`, `PlatformDnsScanner`, `PlatformNeighborScanner`) and re-exports `netra-core` topology types solely for API ergonomics without duplicating any extraction logic.
+
+### Typed Edge Taxonomy
+* **`InterfaceHostsSubnet`**: Interface hosts an active local IP subnet (`interface:<name>` $\to$ `subnet:<cidr>`).
+* **`InterfaceHasGateway`**: Interface is the confirmed egress path for a default gateway (`interface:<name>` $\to$ `gateway:<ip>`).
+* **`InterfaceHasNeighbor`**: Interface observed this Layer-2/Layer-3 adjacent neighbor (`interface:<name>` $\to$ `neighbor:<ip>`).
+* **`NeighborIsGateway`**: Observed neighbor cache entry matches default gateway IP (`neighbor:<ip>` $\to$ `gateway:<ip>`).
+* **`GatewayOnSubnet`**: Default gateway IP falls within a locally active subnet CIDR (`gateway:<ip>` $\to$ `subnet:<cidr>`).
+* **`DnsOnSubnet`**: Configured DNS resolver IP falls within a locally active subnet CIDR (`dns:<ip>` $\to$ `subnet:<cidr>`). Interface ownership is not falsely inferred.
 
 ---
 

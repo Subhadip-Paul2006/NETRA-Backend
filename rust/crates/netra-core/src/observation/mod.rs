@@ -20,7 +20,7 @@ pub use payloads::{
     OsConfigObservationPayload, OsConfigRecord, ProcessObservationPayload, ProcessRecord,
     RouteObservationPayload, RouteRecord, RouteType, ServiceObservationPayload, ServiceRecord,
     ServiceStartType, ServiceState, SocketObservationPayload, SocketProtocol, SocketRecord,
-    UserObservationPayload, UserRecord,
+    TopologyObservationPayload, UserObservationPayload, UserRecord,
 };
 pub use supervisor::{ScanCycleResult, ScannerSupervisor, SCANNER_TIMEOUT_MS};
 pub use target::TargetDescriptor;

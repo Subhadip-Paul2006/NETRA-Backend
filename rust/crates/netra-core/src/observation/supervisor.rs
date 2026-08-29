@@ -8,7 +8,13 @@ use tracing::{error, info, warn};
 
 use crate::error::{NetraError, Result};
 use crate::id::DeviceId;
-use crate::observation::models::ObservationType;
+use crate::network::topology::{
+    TopologyBuilder, TopologyCorrelator, TopologyExtractor, TopologyObservationPayload,
+    TOPOLOGY_SCANNER_ID,
+};
+use crate::observation::models::{Observation, ObservationType, SensitivityLevel};
+use crate::observation::payloads::ObservationPayload;
+use crate::observation::target::TargetDescriptor;
 use crate::observation::traits::PostureScanner;
 use crate::rules::RuleEngine;
 use crate::storage::repositories::findings::FindingsRepository;
@@ -27,6 +33,8 @@ pub struct ScanCycleResult {
     pub findings_evaluated: usize,
     pub active_open_findings: usize,
     pub duration_ms: u64,
+    /// Indicates whether in-memory topology synthesis and Transaction B write succeeded.
+    pub topology_synthesized: bool,
 }
 
 /// Orchestrates host security posture scanners and persists normalized observations and findings.
@@ -119,7 +127,7 @@ impl ScannerSupervisor {
 
         let findings_evaluated = all_findings.len();
 
-        // 3. Perform batch SQLite write
+        // 3. Perform batch SQLite write (Transaction A)
         let obs_clone = observations.clone();
         let findings_clone = all_findings.clone();
 
@@ -165,6 +173,93 @@ impl ScannerSupervisor {
             .await
             .map_err(|e| NetraError::storage(format!("Failed to query open findings: {}", e)))?;
 
+        // 5. In-Memory Network Topology Synthesis (Phase 8.6)
+        let topo_start = Instant::now();
+        let (
+            iface_payload,
+            route_payload,
+            dns_payload,
+            neighbor_payload,
+            missing_sources,
+            partial_sources,
+        ) = TopologyExtractor::extract_from_observations(&observations);
+
+        let mut snapshot = TopologyBuilder::build(
+            device_id.clone(),
+            iface_payload.as_ref(),
+            route_payload.as_ref(),
+            dns_payload.as_ref(),
+            neighbor_payload.as_ref(),
+        );
+
+        let confidence = TopologyExtractor::compute_confidence(&observations);
+        snapshot.confidence = confidence;
+
+        let edges = TopologyCorrelator::correlate(&snapshot);
+        let topo_payload = TopologyObservationPayload {
+            snapshot,
+            edges,
+            missing_sources,
+            partial_sources,
+        };
+
+        let hostname = observations
+            .iter()
+            .find_map(|o| match &o.target {
+                TargetDescriptor::Host { hostname } => Some(hostname.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                std::env::var("COMPUTERNAME")
+                    .or_else(|_| std::env::var("HOSTNAME"))
+                    .unwrap_or_else(|_| "localhost".to_string())
+            });
+
+        let privilege_level = TopologyExtractor::derive_privilege(&observations);
+        let topo_duration_ms = topo_start.elapsed().as_millis() as u64;
+
+        let topology_observation = Observation::new(
+            device_id.clone(),
+            TOPOLOGY_SCANNER_ID,
+            ObservationType::Topology,
+            TargetDescriptor::Host { hostname },
+            topo_duration_ms,
+            privilege_level,
+            confidence,
+            SensitivityLevel::Confidential,
+            ObservationPayload::Topology(topo_payload),
+        );
+
+        // 6. Enqueue synthesized topology observation in separate Transaction B
+        let mut topology_synthesized = false;
+        if let Ok(topo_obs) = topology_observation {
+            let payload_str =
+                serde_json::to_string(&topo_obs.payload).unwrap_or_else(|_| "{}".to_string());
+            let obs_type = format!("{:?}", topo_obs.observation_type).to_lowercase();
+
+            let enqueue_res = self
+                .storage
+                .with_writer(move |conn| {
+                    let _ =
+                        ObservationQueueRepository::enqueue(conn, &obs_type, &payload_str, None);
+                    Ok(())
+                })
+                .await;
+
+            match enqueue_res {
+                Ok(_) => {
+                    topology_synthesized = true;
+                    info!("Successfully synthesized and enqueued network topology snapshot");
+                }
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        "Failed to persist synthesized topology observation; cycle will continue"
+                    );
+                }
+            }
+        }
+
         let duration_ms = start.elapsed().as_millis() as u64;
 
         info!(
@@ -172,6 +267,7 @@ impl ScannerSupervisor {
             observations = observations.len(),
             findings_evaluated = findings_evaluated,
             open_findings = open_findings.len(),
+            topology_synthesized = topology_synthesized,
             duration_ms = duration_ms,
             "Completed host security posture scan cycle"
         );
@@ -183,6 +279,7 @@ impl ScannerSupervisor {
             findings_evaluated,
             active_open_findings: open_findings.len(),
             duration_ms,
+            topology_synthesized,
         })
     }
 
@@ -251,6 +348,7 @@ impl ScannerSupervisor {
             findings_evaluated: findings.len(),
             active_open_findings: open_findings.len(),
             duration_ms: start.elapsed().as_millis() as u64,
+            topology_synthesized: false,
         })
     }
 }
@@ -316,5 +414,18 @@ mod tests {
         assert_eq!(result.observations_collected, 1);
         assert_eq!(result.findings_evaluated, 1);
         assert_eq!(result.active_open_findings, 1);
+        assert!(result.topology_synthesized);
+
+        // Verify SQLite queue: 1 socket observation + 1 synthesized topology observation
+        let count = storage
+            .with_reader(|conn| {
+                ObservationQueueRepository::count_by_status(
+                    conn,
+                    crate::storage::ObservationStatus::Queued,
+                )
+            })
+            .await
+            .unwrap();
+        assert_eq!(count, 2);
     }
 }

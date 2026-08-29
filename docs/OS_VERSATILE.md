@@ -102,7 +102,7 @@ pub trait OSAdapter: Send + Sync {
 | **`SCAN_NEIGHBORS`** | ★ `GetIpNetTable2` ARP+NDP (`NATIVE TESTED`) | ★ Netlink `RTM_GETNEIGH` + `/proc/net/arp` fallback (`FIXTURE TESTED`) | ⚠ Stub `PrivilegeStatus::Unsupported` (`NOT NATIVE TESTED`) |
 | **`SCAN_PROCESSES`** | ★ Full Native Support | ★ Full Native Support | ★ Full Native Support |
 | **`SCAN_FIREWALL`** | ★ `INetFwPolicy2` COM | ★ `nftables` / `iptables` | ★ `pfctl` Inspection |
-| **`OBSERVE_TOPOLOGY`** | ★ `GetIpNetTable2` | ★ `ip neigh` / Netlink | ★ `sysctl` Routing Socket |
+| **`OBSERVE_TOPOLOGY`** | ★ In-Memory Graph Synthesis (`netra-core`, `TESTED`) | ★ In-Memory Graph Synthesis (`netra-core`, `TESTED`) | ★ In-Memory Graph Synthesis (`netra-core`, `TESTED`) |
 | **`BROWSER_EXPOSURE`** | ★ Full Native Support | ★ Full Native Support | ★ Full Native Support |
 | **`SECURE_KEYRING`** | ★ Windows DPAPI | ★ SecretService API | ★ Apple Keychain |
 | **`PROCESS_ISOLATION`** | ★ Win32 Job Objects | ★ cgroups v2 / setrlimit | ★ POSIX setrlimit |
