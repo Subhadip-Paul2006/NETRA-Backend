@@ -271,7 +271,7 @@ pub struct TopologyCorrelationEdge {
 ///
 /// Supports IPv4 and IPv6. Handles prefix length 0 (all-match) and 32/128
 /// (exact match). Malformed inputs or address-family mismatches return `false`.
-fn ip_in_cidr(ip_str: &str, cidr_str: &str) -> bool {
+pub(crate) fn ip_in_cidr(ip_str: &str, cidr_str: &str) -> bool {
     let slash = match cidr_str.rfind('/') {
         Some(p) => p,
         None => return false,

@@ -29,8 +29,7 @@ impl ProcessIsolation for LinuxProcessIsolation {
     fn configure_command(&self, cmd: &mut tokio::process::Command) -> Result<(), NetraError> {
         #[cfg(target_os = "linux")]
         {
-            use std::os::unix::process::CommandExt;
-            let mem_limit = self.memory_limit_bytes;
+            let mem_limit = self.memory_limit_bytes as libc::rlim_t;
             // SAFETY: pre_exec is safely initializing rlimit and death signal in the child process.
             unsafe {
                 cmd.pre_exec(move || {

@@ -230,7 +230,7 @@ flowchart TD
 
 ## 12. Phase 8: Network Intelligence & Topology Discovery
 
-* **Status**: `IN PROGRESS` (Phase 8.1, Phase 8.2, Phase 8.3, Phase 8.4, Phase 8.5 & Phase 8.6 COMPLETED & VERIFIED)
+* **Status**: `IN PROGRESS` (Phase 8.1, Phase 8.2, Phase 8.3, Phase 8.4, Phase 8.5 & Phase 8.6 COMPLETED & VERIFIED; Phase 8.7.1 & Phase 8.7.2 COMPLETED & VERIFIED; Phase 8.7.3+ NOT STARTED)
 * **Goal**: Synthesize cross-agent local network reachability maps and passive network observation.
 * **Scope**:
   - Core network domain models, IP classification, SHA-256 MAC pseudonymization, in-memory topology builder (`netra-core::network`) (`COMPLETED & VERIFIED`).
@@ -251,8 +251,12 @@ flowchart TD
     - Linux: Netlink `RTM_GETNEIGH` (IPv4 ARP + IPv6 NDP) and `/proc/net/arp` fallback (`IMPLEMENTED + FIXTURE TESTED`).
     - macOS: Stubs with explicit `PrivilegeStatus::Unsupported` (`STUB + NOT NATIVE TESTED`).
   - In-memory topology synthesis (`netra-core::network::topology` components `TopologyCorrelator`, `TopologyExtractor`, `TopologyObservationPayload`, `TopologyEdgeKind`, `TopologyCorrelationEdge`, std::net CIDR containment, `ScannerSupervisor` Step 5 synthesis and Step 6 separate Transaction B enqueue) (`COMPLETED & VERIFIED`).
-  - Network posture finding rules, CLI and REST API integration (sub-phases 8.7 - 8.10).
-* **Exit Gate**: Correctly enumerates network interfaces, kernel routing tables, DNS configuration, and Layer-2/Layer-3 neighbor tables, and synthesizes deterministic in-memory topology graphs with typed correlation edges with zero packet transmission, zero active discovery, strict SHA-256 MAC pseudonymization, and deterministic default gateway derivation in $< 500\text{ ms}$.
+  - Phase 8.7.1: Network Rule Infrastructure & Module Layout (`netra-core::rules::network` components `NetworkConfidenceGuardrail`, `NetworkRuleMetadata`, `NetworkRuleRegistry`, `RuleEngine::with_all_rules()`) (`COMPLETED & VERIFIED`).
+  - Phase 8.7.2: Gateway Posture Finding Rules (`NET-003-GATEWAY-OFF-SUBNET`, `NET-004-COMPETING-DEFAULT-GATEWAYS`) (`COMPLETED & VERIFIED`).
+  - Phase 8.7.3: DNS & Routing Posture Finding Rules (`NET-005-INVALID-DNS-RESOLVER`, `NET-006-LOOPBACK-ROUTE-LEAK`) (`COMPLETED & VERIFIED`).
+  - Phase 8.7.4: Neighbor & Multi-Homing Posture Finding Rules (`NET-007-INVALID-NEIGHBOR-ENTRY`, `NET-008-MULTI-HOMED-PUBLIC-PRIVATE`) (`COMPLETED & VERIFIED`).
+  - Phase 8.7.5+: Pipeline Integration, Final Verification, CLI and REST API integration (sub-phases 8.7.5 - 8.10) (`NOT STARTED`).
+* **Exit Gate**: Correctly enumerates network interfaces, kernel routing tables, DNS configuration, and Layer-2/Layer-3 neighbor tables, synthesizes deterministic in-memory topology graphs with typed correlation edges, and evaluates 6 deterministic network finding rules (`NET-003` to `NET-008`) with zero packet transmission, zero active discovery, strict SHA-256 MAC pseudonymization, and deterministic default gateway derivation in $< 500\text{ ms}$.
 
 ---
 

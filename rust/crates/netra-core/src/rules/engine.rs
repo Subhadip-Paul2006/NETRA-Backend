@@ -30,6 +30,15 @@ impl RuleEngine {
         engine
     }
 
+    /// Creates a RuleEngine configured with all baseline rules and network security finding rules (Phase 8.7).
+    pub fn with_all_rules() -> Self {
+        let mut engine = Self::with_baseline_rules();
+        for rule in crate::rules::network::create_all_network_rules() {
+            engine.register_rule(rule);
+        }
+        engine
+    }
+
     /// Registers a custom or baseline rule with the engine.
     pub fn register_rule(&mut self, rule: Arc<dyn FindingRule>) {
         self.rules.push(rule);

@@ -281,14 +281,25 @@ fn query_linux_netlink_neighbors() -> Result<Vec<NeighborRecord>> {
         }
 
         #[repr(C)]
+        struct LinuxNdmsg {
+            ndm_family: u8,
+            ndm_pad1: u8,
+            ndm_pad2: u16,
+            ndm_ifindex: i32,
+            ndm_state: u16,
+            ndm_flags: u8,
+            ndm_type: u8,
+        }
+
+        #[repr(C)]
         struct NetlinkReq {
             nlh: libc::nlmsghdr,
-            ndm: libc::ndmsg,
+            ndm: LinuxNdmsg,
         }
 
         let mut req: NetlinkReq = std::mem::zeroed();
         req.nlh.nlmsg_len = std::mem::size_of::<NetlinkReq>() as u32;
-        req.nlh.nlmsg_type = libc::RTM_GETNEIGH as u16;
+        req.nlh.nlmsg_type = libc::RTM_GETNEIGH;
         req.nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
         req.nlh.nlmsg_seq = 1;
         req.ndm.ndm_family = libc::AF_UNSPEC as u8;

@@ -12,7 +12,9 @@ use netra_core::storage::repositories::queue::ObservationQueueRepository;
 use netra_core::storage::{DatabaseEngine, ObservationStatus};
 use netra_platform::scanners::linux::neighbors::{parse_netlink_neighbors, parse_proc_net_arp};
 use netra_platform::scanners::PlatformNeighborScanner;
+#[cfg(windows)]
 use std::net::IpAddr;
+#[cfg(windows)]
 use std::str::FromStr;
 use std::sync::Arc;
 

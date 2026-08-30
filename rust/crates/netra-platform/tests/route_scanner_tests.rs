@@ -44,6 +44,7 @@ async fn test_native_platform_route_scanner_execution() {
 
     match &obs.payload {
         ObservationPayload::Routes(payload) => {
+            let _ = payload;
             #[cfg(windows)]
             {
                 assert_eq!(obs.privilege_level, PrivilegeStatus::Available);

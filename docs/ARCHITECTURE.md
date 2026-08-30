@@ -355,6 +355,27 @@ flowchart TD
 * **`GatewayOnSubnet`**: Default gateway IP falls within a locally active subnet CIDR (`gateway:<ip>` $\to$ `subnet:<cidr>`).
 * **`DnsOnSubnet`**: Configured DNS resolver IP falls within a locally active subnet CIDR (`dns:<ip>` $\to$ `subnet:<cidr>`). Interface ownership is not falsely inferred.
 
+### Network Posture Rule Infrastructure (Phase 8.7.1)
+* **Modular Layout (`netra-core::rules::network`)**: Establishes common infrastructure for platform-neutral evaluation of network configuration and topology observations.
+* **Confidence Guardrails (`NetworkConfidenceGuardrail`)**: Deterministic policy evaluator enforcing minimum confidence thresholds (`min_confidence`, `min_privilege`, `required_sources`) and explicit actions (`Allow`, `Suppress`, `Downgrade`) preventing false high-severity alerts when evidence is partial or unsupported.
+* **Network Rule Registry (`NetworkRuleRegistry`)**: In-memory registry enabling decoupled network rule registration and integration into `RuleEngine` (`with_all_rules()`).
+
+### Gateway Posture Finding Rules (Phase 8.7.2)
+* **`NET-003-GATEWAY-OFF-SUBNET`**: Evaluates whether active default gateway addresses in `NetworkTopologySnapshot` fall within locally observed subnet CIDRs on the egress interface. Ignores standard IPv6 Link-Local (`fe80::/10`) default routers, RFC 3021/6164 subnets, and verified P2P/tunnel links.
+* **`NET-004-COMPETING-DEFAULT-GATEWAYS`**: Evaluates whether multiple active default routes within the same address family share exact equal metrics ($m_1 == m_2$), indicating non-deterministic egress routing without a clear priority hierarchy.
+* **Canonical Domain**: Both rules declare `domain(&self) -> ObservationType::Topology`, evaluating exclusively on synthesized topology observations to avoid duplicate findings.
+* **Zero Threat-Attribution**: Scientific, neutral terminology is strictly enforced; configuration anomalies are never described as attacks, rogues, or compromises without proof.
+
+### DNS & Routing Posture Finding Rules (Phase 8.7.3)
+* **`NET-005-INVALID-DNS-RESOLVER`**: Evaluates whether configured DNS nameservers contain unroutable or structurally invalid IP addresses (`IpClassification::Unspecified`, `Broadcast`, `Multicast`, `Documentation`). Declares `domain(&self) -> ObservationType::Dns`, defaults to `FindingSeverity::Low`, and requires source `["scanner.dns.v1"]`.
+* **`NET-006-LOOPBACK-ROUTE-LEAK`**: Evaluates whether routing tables direct host loopback address space (`127.0.0.0/8` or `::1/128`) to an external gateway or non-loopback network interface, contrary to RFC 1122 and RFC 4291 host loopback isolation. Declares `domain(&self) -> ObservationType::Routes`, defaults to `FindingSeverity::Medium` (downgrading to `Low` on low confidence), and requires source `["scanner.routes.v1"]`.
+* **Descriptive Non-Claims Security Language**: Findings describe observed configurations contrary to isolation RFCs rather than asserting that data or IPC traffic was actively leaked or snooped.
+
+### Neighbor & Multi-Homing Posture Finding Rules (Phase 8.7.4)
+* **`NET-007-INVALID-NEIGHBOR-ENTRY`**: Evaluates whether Layer-2/Layer-3 ARP/NDP neighbor cache entries contain unroutable or non-unicast IP addresses (`IpClassification::Unspecified`, `Broadcast`, `Multicast`, `Loopback`). Since ARP and NDP are strictly unicast link-layer resolution protocols, non-unicast entries indicate invalid static mappings or corrupt stack entries. Declares `domain(&self) -> ObservationType::Neighbors`, defaults to `FindingSeverity::Low`, and requires source `["scanner.neighbors.v1"]`.
+* **`NET-008-MULTI-HOMED-PUBLIC-PRIVATE`**: Evaluates whether a host is observed to be simultaneously connected across distinct eligible physical network adapters to both an untrusted `PublicGlobal` network and an internal RFC 1918 `Private` subnet. Declares `domain(&self) -> ObservationType::Topology`, defaults to `FindingSeverity::Low`, and requires sources `["scanner.interfaces.v1", "scanner.routes.v1"]`. Excludes virtual adapters (Docker, WSL, Hyper-V), VPN/tunnel links, and documentation address space (`198.51.100.0/24`, etc.).
+* **Strict Observational & Privacy Boundaries**: Findings strictly describe observed configuration posture without speculative claims (no claims of "Rogue Device", "ARP Spoofing", "MITM", "Unmanaged Host", or "Perimeter Breach"). Zero raw MAC addresses are serialized into evidence JSON or target keys.
+
 ---
 
 ## 8. Browser & Web Exposure Observation Subsystem

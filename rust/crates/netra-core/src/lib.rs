@@ -73,8 +73,12 @@ pub use observation::{
     UserObservationPayload, UserRecord, OBSERVATION_SCHEMA_VERSION, SCANNER_TIMEOUT_MS,
 };
 pub use rules::{
-    FindingRule, Fw001ProfileDisabledRule, Net001PlaintextPortRule, Net002UnrestrictedDbRule,
-    Os001SecureBootOffRule, RawFinding, RuleEngine, Svc001UnquotedPathRule, Usr001GuestEnabledRule,
+    create_all_network_rules, ConfidenceAction, FindingRule, Fw001ProfileDisabledRule,
+    GuardrailDecision, Net001PlaintextPortRule, Net002UnrestrictedDbRule,
+    Net003GatewayOffSubnetRule, Net004CompetingGatewaysRule, Net005InvalidDnsResolverRule,
+    Net006LoopbackRouteLeakRule, Net007InvalidNeighborEntryRule, Net008MultiHomedPublicPrivateRule,
+    NetworkConfidenceGuardrail, NetworkRuleMetadata, NetworkRuleRegistry, Os001SecureBootOffRule,
+    RawFinding, RuleEngine, Svc001UnquotedPathRule, Usr001GuestEnabledRule,
 };
 pub use runtime::{
     ArcComponent, ComponentHealth, ComponentLifecycle, RuntimeCoordinator, RuntimeState,
