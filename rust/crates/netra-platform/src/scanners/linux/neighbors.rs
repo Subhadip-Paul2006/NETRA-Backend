@@ -273,7 +273,7 @@ fn query_linux_netlink_neighbors() -> Result<Vec<NeighborRecord>> {
     unsafe {
         let fd = libc::socket(
             libc::AF_NETLINK,
-            libc::SOCK_RAW | libc::SOCK_CLOEXEC,
+            libc::SOCK_RAW | libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK,
             libc::NETLINK_ROUTE,
         );
         if fd < 0 {
@@ -318,23 +318,63 @@ fn query_linux_netlink_neighbors() -> Result<Vec<NeighborRecord>> {
             ));
         }
 
+        let mut pfd = libc::pollfd {
+            fd,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+
         let mut buf = vec![0u8; 16384];
         let mut total_bytes = Vec::new();
 
-        loop {
-            let received = libc::recv(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0);
+        // Bounded read loop: at most 32 chunks with 250ms poll timeout per chunk
+        for _ in 0..32 {
+            let poll_ret = libc::poll(&mut pfd, 1, 250);
+            if poll_ret <= 0 || (pfd.revents & libc::POLLIN) == 0 {
+                break;
+            }
+
+            let received = libc::recv(
+                fd,
+                buf.as_mut_ptr() as *mut libc::c_void,
+                buf.len(),
+                libc::MSG_DONTWAIT,
+            );
             if received <= 0 {
                 break;
             }
             let n = received as usize;
             total_bytes.extend_from_slice(&buf[..n]);
 
-            // Check for NLMSG_DONE
-            if n >= 16 {
-                let nlmsg_type = u16::from_ne_bytes(buf[4..6].try_into().unwrap());
-                if nlmsg_type == libc::NLMSG_DONE as u16 {
+            // Iterate through all Netlink messages inside this buffer
+            let mut done = false;
+            let mut offset = 0;
+            while offset + 16 <= n {
+                let msg_len =
+                    u32::from_ne_bytes(buf[offset..offset + 4].try_into().unwrap()) as usize;
+                let msg_type = u16::from_ne_bytes(buf[offset + 4..offset + 6].try_into().unwrap());
+                let msg_flags = u16::from_ne_bytes(buf[offset + 6..offset + 8].try_into().unwrap());
+
+                if msg_type == libc::NLMSG_DONE as u16 || msg_type == libc::NLMSG_ERROR as u16 {
+                    done = true;
                     break;
                 }
+
+                // If not a multi-part dump message, single packet is the full response
+                if (msg_flags & libc::NLM_F_MULTI as u16) == 0 {
+                    done = true;
+                }
+
+                if msg_len < 16 || offset + msg_len > n {
+                    break;
+                }
+
+                let aligned_msg_len = (msg_len + 3) & !3;
+                offset += aligned_msg_len;
+            }
+
+            if done {
+                break;
             }
         }
 

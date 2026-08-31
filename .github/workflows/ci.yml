@@ -11,6 +11,7 @@ jobs:
   rust-matrix:
     name: Rust Core (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -65,6 +66,7 @@ jobs:
   security-audit:
     name: Security & License Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
