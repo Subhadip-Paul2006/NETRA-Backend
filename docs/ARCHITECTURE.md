@@ -376,6 +376,20 @@ flowchart TD
 * **`NET-008-MULTI-HOMED-PUBLIC-PRIVATE`**: Evaluates whether a host is observed to be simultaneously connected across distinct eligible physical network adapters to both an untrusted `PublicGlobal` network and an internal RFC 1918 `Private` subnet. Declares `domain(&self) -> ObservationType::Topology`, defaults to `FindingSeverity::Low`, and requires sources `["scanner.interfaces.v1", "scanner.routes.v1"]`. Excludes virtual adapters (Docker, WSL, Hyper-V), VPN/tunnel links, and documentation address space (`198.51.100.0/24`, etc.).
 * **Strict Observational & Privacy Boundaries**: Findings strictly describe observed configuration posture without speculative claims (no claims of "Rogue Device", "ARP Spoofing", "MITM", "Unmanaged Host", or "Perimeter Breach"). Zero raw MAC addresses are serialized into evidence JSON or target keys.
 
+### Network Findings Pipeline Integration (Phase 8.7.5)
+* **Canonical Evaluation Flow**: `ScannerSupervisor` runs platform collectors concurrently, executes in-memory topology synthesis, aggregates raw observations and the derived `ObservationType::Topology` into a unified observation set, and performs a single-pass evaluation across all registered finding rules in `RuleEngine::with_all_rules()`.
+* **Transaction A / Transaction B Boundary**:
+  - **Transaction A**: Atomically commits successful raw observation queues, upserts evaluated findings via `FindingsRepository::upsert_entry()`, and reconciles remediated findings for authoritatively evaluated domains.
+  - **Transaction B**: Enqueues the derived topology observation separately. Persistence failure in Transaction B is isolated and logged as a warning; it never rolls back or invalidates Transaction A observations or findings.
+* **Deterministic Finding Deduplication & Discriminator Fix**: Exact precomputed SHA-256 fingerprints (`SHA256(rule_id:target_key:raw_discriminator)`) from `FindingEntry` are persisted directly into SQLite `local_findings`, eliminating discriminator aliasing bugs.
+* **Failure-Isolated Lifecycle Reconciliation**: Automated resolution to `FindingStatus::Resolved` occurs exclusively for rules whose required source collectors succeeded with authoritative kernel telemetry. If a collector fails, times out, or encounters permission denial, existing findings for that domain remain safely `FindingStatus::Open`. Remediated conditions that reappear automatically reopen to `FindingStatus::Open` with incrementing `occurrence_count`, and `FindingStatus::Suppressed` entries retain their suppression status across scan cycles.
+
+### Final Network Intelligence Verification & Hardening (Phase 8.7.6)
+* **Dedicated Verification Suite**: Validated through `tests/network_verification_tests.rs` across all 6 network rules (`NET-003` to `NET-008`), establishing cross-rule isolation, domain dispatch accuracy, and 0 unintended overlap.
+* **8-Mode Telemetry Failure Isolation Matrix**: Formally verified that `OPEN` findings are protected from false resolution across all failure modes (collector error, timeout, permission denial, unsupported OS status, partial privilege, and missing topology telemetry sources).
+* **Fingerprint Ordering Invariance**: Proven identical fingerprints across arbitrary permutations of network interfaces, routing tables, neighbor caches, and DNS resolvers.
+* **Threat Attribution & Privacy Invariants**: Verified that zero speculative threat-actor terminology is emitted and zero raw MAC addresses, credentials, or private keys leak into finding evidence or SQLite tables.
+
 ---
 
 ## 8. Browser & Web Exposure Observation Subsystem
