@@ -118,6 +118,85 @@ fn test_parse_global_flags() {
 }
 
 #[test]
+fn test_parse_findings_subcommands() {
+    use netra_cli::cli::FindingsSubcommand;
+
+    // 1. netra findings (default list)
+    let args = CliArgs::try_parse_from(["netra", "findings"]).unwrap();
+    if let Some(Commands::Findings(f)) = args.command {
+        assert!(f.action.is_none());
+    } else {
+        panic!("Expected findings command");
+    }
+
+    // 2. netra findings list with all flags
+    let args = CliArgs::try_parse_from([
+        "netra",
+        "findings",
+        "list",
+        "--status",
+        "open",
+        "--severity",
+        "high",
+        "--rule",
+        "NET-003",
+        "--limit",
+        "10",
+    ])
+    .unwrap();
+    if let Some(Commands::Findings(f)) = args.command {
+        if let Some(FindingsSubcommand::List(l)) = f.action {
+            assert_eq!(l.status.as_deref(), Some("open"));
+            assert_eq!(l.severity.as_deref(), Some("high"));
+            assert_eq!(l.rule.as_deref(), Some("NET-003"));
+            assert_eq!(l.limit, Some(10));
+        } else {
+            panic!("Expected findings list subcommand");
+        }
+    } else {
+        panic!("Expected findings command");
+    }
+
+    // 3. netra findings show <FINGERPRINT>
+    let fp = "a".repeat(64);
+    let args = CliArgs::try_parse_from(["netra", "findings", "show", &fp]).unwrap();
+    if let Some(Commands::Findings(f)) = args.command {
+        if let Some(FindingsSubcommand::Show(s)) = f.action {
+            assert_eq!(s.fingerprint, fp);
+        } else {
+            panic!("Expected findings show subcommand");
+        }
+    } else {
+        panic!("Expected findings command");
+    }
+
+    // 4. netra findings count with filters
+    let args = CliArgs::try_parse_from([
+        "netra",
+        "findings",
+        "count",
+        "--status",
+        "resolved",
+        "--severity",
+        "critical",
+        "--rule",
+        "NET-003-GATEWAY-OFF-SUBNET",
+    ])
+    .unwrap();
+    if let Some(Commands::Findings(f)) = args.command {
+        if let Some(FindingsSubcommand::Count(c)) = f.action {
+            assert_eq!(c.status.as_deref(), Some("resolved"));
+            assert_eq!(c.severity.as_deref(), Some("critical"));
+            assert_eq!(c.rule.as_deref(), Some("NET-003-GATEWAY-OFF-SUBNET"));
+        } else {
+            panic!("Expected findings count subcommand");
+        }
+    } else {
+        panic!("Expected findings command");
+    }
+}
+
+#[test]
 fn test_parse_invalid_command_rejected() {
     let result = CliArgs::try_parse_from(["netra", "invalid_subcommand"]);
     assert!(result.is_err());

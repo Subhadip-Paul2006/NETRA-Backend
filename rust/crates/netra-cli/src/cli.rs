@@ -166,17 +166,52 @@ pub struct FindingsArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum FindingsSubcommand {
-    /// List recorded posture findings with optional severity and status filtering.
+    /// List recorded posture findings with optional filtering and limits.
     List(FindingsListArgs),
+
+    /// Display detailed evidence, metadata, and remediation for a specific finding.
+    Show(FindingsShowArgs),
+
+    /// Display aggregate finding counts grouped by status and severity.
+    Count(FindingsCountArgs),
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Default, Args)]
 pub struct FindingsListArgs {
     /// Filter findings by severity (CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL).
-    #[arg(short, long)]
+    #[arg(long)]
     pub severity: Option<String>,
 
     /// Filter findings by status (OPEN, RESOLVED, SUPPRESSED).
-    #[arg(short, long)]
+    #[arg(long)]
     pub status: Option<String>,
+
+    /// Filter findings by full rule ID or canonical short ID (e.g. NET-003).
+    #[arg(long)]
+    pub rule: Option<String>,
+
+    /// Maximum number of findings to display.
+    #[arg(long)]
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct FindingsShowArgs {
+    /// 64-character SHA-256 hex finding fingerprint to inspect.
+    pub fingerprint: String,
+}
+
+#[derive(Debug, Clone, Default, Args)]
+pub struct FindingsCountArgs {
+    /// Filter findings count by severity (CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL).
+    #[arg(long)]
+    pub severity: Option<String>,
+
+    /// Filter findings count by status (OPEN, RESOLVED, SUPPRESSED).
+    #[arg(long)]
+    pub status: Option<String>,
+
+    /// Filter findings count by full rule ID or canonical short ID (e.g. NET-003).
+    #[arg(long)]
+    pub rule: Option<String>,
 }

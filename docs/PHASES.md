@@ -230,7 +230,7 @@ flowchart TD
 
 ## 12. Phase 8: Network Intelligence & Topology Discovery
 
-* **Status**: `IN PROGRESS` (Phase 8.1, Phase 8.2, Phase 8.3, Phase 8.4, Phase 8.5 & Phase 8.6 COMPLETED & VERIFIED; Phase 8.7.1, Phase 8.7.2, Phase 8.7.3, Phase 8.7.4, Phase 8.7.5 & Phase 8.7.6 COMPLETED & VERIFIED; Phase 8.8.1 COMPLETED & VERIFIED; Phase 8.8.2+ NOT STARTED)
+* **Status**: `IN PROGRESS` (Phase 8.1–8.7.6 COMPLETED & VERIFIED; Phase 8.8.1 & Phase 8.8.2 COMPLETED & VERIFIED; Phase 8.8.3+ NOT STARTED)
 * **Goal**: Synthesize cross-agent local network reachability maps and passive network observation.
 * **Scope**:
   - Core network domain models, IP classification, SHA-256 MAC pseudonymization, in-memory topology builder (`netra-core::network`) (`COMPLETED & VERIFIED`).
@@ -258,7 +258,8 @@ flowchart TD
   - Phase 8.7.5: Network Findings Pipeline Integration (`ScannerSupervisor` canonical evaluation with `RuleEngine::with_all_rules()`, derived topology observation evaluation, `FindingsRepository::upsert_entry()`, discriminator/fingerprint fix, failure-isolated reconciliation lifecycle, Transaction A/B boundaries) (`COMPLETED & VERIFIED`).
   - Phase 8.7.6: Final Network Intelligence Verification (`network_verification_tests.rs`, rule inventory audit, cross-rule isolation, 8-mode telemetry failure isolation matrix, fingerprint determinism & ordering invariance, threat attribution language compliance, zero raw MAC privacy audit, Transaction A/B fault boundary verification) (`COMPLETED & VERIFIED`).
   - Phase 8.8.1: Repository-Level SQL Aggregation & Deterministic Rule Resolution (`FindingsRepository::count_summary`, `RuleEngine::resolve_rule_id`, `FindingsCountFilter`, `FindingsSummaryStats`, `StatusCounts`, `SeverityCounts`) (`COMPLETED & VERIFIED`).
-  - Phase 8.8.2+: Findings Presentation, CLI UX & Operator Interface (`NOT STARTED`).
+  - Phase 8.8.2: CLI Command Hierarchy & Subcommand Implementation (`netra findings list`, `netra findings show`, `netra findings count`, argument validation, exit codes, stream separation) (`COMPLETED & VERIFIED`).
+  - Phase 8.8.3+: Scan UX, REST API Parity & Final Verification (`NOT STARTED`).
 * **Exit Gate**: Correctly enumerates network interfaces, kernel routing tables, DNS configuration, and Layer-2/Layer-3 neighbor tables, synthesizes deterministic in-memory topology graphs with typed correlation edges, and evaluates 6 deterministic network finding rules (`NET-003` to `NET-008`) and all baseline rules through a single unified canonical evaluation pipeline with atomic Transaction A and failure-isolated Transaction B persistence.
 
 ---

@@ -44,10 +44,7 @@ async fn test_scan_and_findings_cli_pipeline() {
 
     // 3. Query findings via CLI
     let findings_args = FindingsArgs {
-        action: Some(FindingsSubcommand::List(FindingsListArgs {
-            severity: None,
-            status: None,
-        })),
+        action: Some(FindingsSubcommand::List(FindingsListArgs::default())),
     };
     let findings_exit = execute_findings(&findings_args, &config, Some(&engine), &presenter)
         .await
