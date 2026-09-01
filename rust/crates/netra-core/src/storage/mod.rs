@@ -28,5 +28,6 @@ pub use pruner::{
 pub use recovery::{IntegrityVerification, QuarantineManager, QuarantineMetadata};
 pub use repositories::{
     ConfigEntry, ConfigRepository, FindingEntry, FindingSeverity, FindingStatus,
-    FindingsRepository, ObservationEntry, ObservationQueueRepository, ObservationStatus,
+    FindingsCountFilter, FindingsRepository, FindingsSummaryStats, ObservationEntry,
+    ObservationQueueRepository, ObservationStatus, SeverityCounts, StatusCounts,
 };
